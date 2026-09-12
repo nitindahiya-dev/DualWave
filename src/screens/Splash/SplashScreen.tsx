@@ -1,4 +1,5 @@
-import React, {useEffect} from 'react';
+import React from 'react';
+
 import {
   StyleSheet,
   Text,
@@ -7,19 +8,7 @@ import {
 
 import {COLORS} from '../../constants/colors';
 
-interface Props {
-  navigation: any;
-}
-
-const SplashScreen = ({navigation}: Props) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('Auth');
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [navigation]);
-
+const SplashScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>

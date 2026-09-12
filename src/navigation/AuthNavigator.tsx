@@ -1,5 +1,10 @@
 import React from 'react';
-import {createNativeStackNavigator} from '@react-navigation/native-stack';
+
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack';
+
+import {AuthStackParamList} from '../types/navigation';
 
 import WelcomeScreen from '../screens/Welcome/WelcomeScreen';
 
@@ -15,9 +20,8 @@ import LanguageScreen from '../screens/Profile/LanguageScreen';
 import CountryScreen from '../screens/Profile/CountryScreen';
 import ProfileCompleteScreen from '../screens/Profile/ProfileCompleteScreen';
 
-import HomeScreen from '../screens/Home/HomeScreen';
-
-const Stack = createNativeStackNavigator();
+const Stack =
+  createNativeStackNavigator<AuthStackParamList>();
 
 const AuthNavigator = () => {
   return (
@@ -79,11 +83,6 @@ const AuthNavigator = () => {
       <Stack.Screen
         name="ProfileComplete"
         component={ProfileCompleteScreen}
-      />
-
-      <Stack.Screen
-        name="Home"
-        component={HomeScreen}
       />
 
     </Stack.Navigator>

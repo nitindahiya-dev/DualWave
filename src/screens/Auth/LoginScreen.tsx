@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,19 +10,28 @@ import {
 
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import {COLORS} from '../../constants/colors';
+import { COLORS } from '../../constants/colors';
+import { useAuthStore } from '../../store/authStore';
 
 interface Props {
   navigation: any;
 }
 
-const LoginScreen = ({navigation}: Props) => {
+const LoginScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const login = useAuthStore(state => state.login);
 
   const handleLogin = () => {
-    // Authentication will be connected later.
-    console.log('Login:', email);
+    if (!email || !password) {
+      return;
+    }
+
+    login({
+      id: 'demo-user-001',
+      name: 'DualWave User',
+      email,
+    });
   };
 
   return (
