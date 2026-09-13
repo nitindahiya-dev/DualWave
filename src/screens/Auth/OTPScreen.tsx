@@ -33,7 +33,7 @@ const OTPScreen = ({ navigation, route }: Props) => {
     state => state.clearAuthError,
   );
 
-  const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
 
   const inputs = useRef<
     Array<React.ElementRef<typeof TextInput> | null>
@@ -70,7 +70,7 @@ const OTPScreen = ({ navigation, route }: Props) => {
   const handleVerify = async () => {
     const code = otp.join('');
 
-    if (code.length !== 8) {
+    if (code.length !== 6) {
       return;
     }
 
@@ -95,7 +95,7 @@ const OTPScreen = ({ navigation, route }: Props) => {
         <Text style={styles.title}>Verify your account</Text>
 
         <Text style={styles.subtitle}>
-          We've sent a 8-digit verification code to your email.
+          We've sent a 6-digit verification code to your email.
         </Text>
       </View>
 
