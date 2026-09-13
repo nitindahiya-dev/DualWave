@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,34 +10,103 @@ import {
 
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { COLORS } from '../../constants/colors';
-import { useAuthStore } from '../../store/authStore';
+import {COLORS} from '../../constants/colors';
+import {useAuthStore} from '../../store/authStore';
 
 interface Props {
   navigation: any;
 }
 
-const LoginScreen = ({ navigation }: Props) => {
+interface FormErrors {
+  email?: string;
+  password?: string;
+}
+
+const LoginScreen = ({navigation}: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const login = useAuthStore(state => state.login);
 
-  const handleLogin = () => {
-    if (!email || !password) {
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  const login = useAuthStore(state => state.login);
+  const isLoading = useAuthStore(state => state.isLoading);
+  const authError = useAuthStore(state => state.authError);
+  const clearAuthError = useAuthStore(
+    state => state.clearAuthError,
+  );
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    const trimmedEmail = email.trim();
+
+    // Email validation
+    if (!trimmedEmail) {
+      newErrors.email = 'Email is required.';
+    } else if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
+    ) {
+      newErrors.email = 'Please enter a valid email address.';
+    }
+
+    // Password validation
+    if (!password) {
+      newErrors.password = 'Password is required.';
+    } else if (password.length < 8) {
+      newErrors.password =
+        'Password must be at least 8 characters.';
+    }
+
+    setErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleLogin = async () => {
+    const isValid = validateForm();
+
+    if (!isValid) {
       return;
     }
 
-    login({
-      id: 'demo-user-001',
-      name: 'DualWave User',
-      email,
-    });
+    await login(email, password);
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+
+    if (errors.email) {
+      setErrors(previous => ({
+        ...previous,
+        email: undefined,
+      }));
+    }
+
+    if (authError) {
+      clearAuthError();
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+
+    if (errors.password) {
+      setErrors(previous => ({
+        ...previous,
+        password: undefined,
+      }));
+    }
+
+    if (authError) {
+      clearAuthError();
+    }
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
@@ -61,19 +130,27 @@ const LoginScreen = ({ navigation }: Props) => {
             label="Email"
             placeholder="you@example.com"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={handleEmailChange}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            error={errors.email}
           />
 
           <Input
             label="Password"
             placeholder="Enter your password"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={handlePasswordChange}
             secureTextEntry
+            error={errors.password}
           />
+
+          {authError && (
+            <Text style={styles.authError}>
+              {authError}
+            </Text>
+          )}
 
           <Text
             style={styles.forgot}
@@ -84,6 +161,8 @@ const LoginScreen = ({ navigation }: Props) => {
           <Button
             title="Log in"
             onPress={handleLogin}
+            loading={isLoading}
+            disabled={isLoading}
           />
         </View>
 
@@ -98,6 +177,7 @@ const LoginScreen = ({ navigation }: Props) => {
             Create account
           </Text>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -141,6 +221,13 @@ const styles = StyleSheet.create({
 
   form: {
     width: '100%',
+  },
+
+  authError: {
+    color: COLORS.error,
+    fontSize: 13,
+    marginTop: -4,
+    marginBottom: 20,
   },
 
   forgot: {

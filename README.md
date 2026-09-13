@@ -1,4 +1,4 @@
-## DualWave — AI-powered real-time communication
+## DualWave — AI-powered real-time communication [Under Construction]
 
 An AI-powered real-time communication app that lets people communicate across languages using text, voice, video calls, and face-to-face modes — preserving the speaker's natural voice via AI voice cloning.
 

@@ -22,6 +22,10 @@ const RootNavigator = () => {
     state => state.isAuthenticated,
   );
 
+  const isHydrated = useAuthStore(
+    state => state.isHydrated,
+  );
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsSplashFinished(true);
@@ -30,7 +34,10 @@ const RootNavigator = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!isSplashFinished) {
+  // Keep showing Splash until:
+  // 1. Splash timer has finished
+  // 2. Authentication state has been restored
+  if (!isSplashFinished || !isHydrated) {
     return <SplashScreen />;
   }
 
