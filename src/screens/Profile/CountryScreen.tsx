@@ -12,6 +12,7 @@ import {COLORS} from '../../constants/colors';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
 const countries = [
@@ -27,45 +28,81 @@ const countries = [
   'Singapore',
 ];
 
-const CountryScreen = ({navigation}: Props) => {
+const CountryScreen = ({
+  navigation,
+  route,
+}: Props) => {
   const [selected, setSelected] = useState('');
+
+  const {
+    profilePhotoUrl,
+    displayName,
+    username,
+    nativeLanguage,
+  } = route.params || {};
+
+  const handleContinue = () => {
+    if (!selected) {
+      return;
+    }
+
+    navigation.navigate('ProfileComplete', {
+      profilePhotoUrl,
+      displayName,
+      username,
+      nativeLanguage,
+      country: selected,
+    });
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}>
 
-        <Text style={styles.step}>STEP 3 OF 4</Text>
+        <Text style={styles.step}>
+          STEP 3 OF 4
+        </Text>
 
-        <Text style={styles.title}>Where are you from?</Text>
+        <Text style={styles.title}>
+          Where are you from?
+        </Text>
 
         <Text style={styles.subtitle}>
-          Your country helps us personalize your DualWave experience.
+          Your country helps us personalize your
+          DualWave experience.
         </Text>
 
         {countries.map(country => {
-          const isSelected = selected === country;
+          const isSelected =
+            selected === country;
 
           return (
             <TouchableOpacity
               key={country}
               style={[
                 styles.country,
-                isSelected && styles.selectedCountry,
+                isSelected &&
+                  styles.selectedCountry,
               ]}
-              onPress={() => setSelected(country)}
+              onPress={() =>
+                setSelected(country)
+              }
               activeOpacity={0.8}>
 
               <Text
                 style={[
                   styles.countryText,
-                  isSelected && styles.selectedText,
+                  isSelected &&
+                    styles.selectedText,
                 ]}>
                 {country}
               </Text>
 
               {isSelected && (
-                <Text style={styles.check}>✓</Text>
+                <Text style={styles.check}>
+                  ✓
+                </Text>
               )}
             </TouchableOpacity>
           );
@@ -75,7 +112,7 @@ const CountryScreen = ({navigation}: Props) => {
       <View style={styles.bottom}>
         <Button
           title="Continue"
-          onPress={() => navigation.navigate('ProfileComplete')}
+          onPress={handleContinue}
           disabled={!selected}
         />
       </View>

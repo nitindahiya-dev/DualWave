@@ -8,6 +8,7 @@ import {
   verifyEmailOtp,
   resendSignupEmail,
 } from '../services/auth/authService';
+import { getProfile } from '../services/profile/profileService';
 
 import { supabase } from '../services/supabase/supabaseClient';
 
@@ -23,8 +24,10 @@ interface AuthState {
   isLoading: boolean;
   isHydrated: boolean;
   authError: string | null;
+  hasProfile: boolean;
 
   initializeAuth: () => Promise<void>;
+  setHasProfile: (value: boolean) => void;
 
   register: (
     name: string,
@@ -74,6 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  hasProfile: false,
   isHydrated: false,
   authError: null,
 
@@ -81,24 +85,44 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const session = await getCurrentSession();
 
+      if (!session) {
+        set({
+          user: null,
+          isAuthenticated: false,
+          hasProfile: false,
+          isHydrated: true,
+          authError: null,
+        });
+
+        return;
+      }
+
       const user = mapSupabaseUser(
-        session?.user || null,
+        session.user,
       );
+
+      const profile = await getProfile();
 
       set({
         user,
-        isAuthenticated: !!session,
+        isAuthenticated: true,
+        hasProfile: !!profile,
         isHydrated: true,
         authError: null,
       });
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      console.error(
+        'Auth initialization error:',
+        error,
+      );
 
       set({
         user: null,
         isAuthenticated: false,
+        hasProfile: false,
         isHydrated: true,
-        authError: 'Unable to restore your session.',
+        authError:
+          'Unable to restore your session.',
       });
     }
   },
@@ -266,6 +290,12 @@ export const useAuthStore = create<AuthState>((set) => ({
           'Unable to log out. Please try again.',
       });
     }
+  },
+
+  setHasProfile: value => {
+    set({
+      hasProfile: value,
+    });
   },
 
   clearAuthError: () => {

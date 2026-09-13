@@ -17,16 +17,40 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 
   ResetPassword: undefined;
+};
 
-  ProfilePhoto: undefined;
+/*
+ * Profile setup screens
+ */
+export type ProfileSetupStackParamList = {
+  ProfilePhoto: {
+    profilePhotoUrl?: string | null;
+  };
 
-  CreateProfile: undefined;
+  CreateProfile: {
+    profilePhotoUrl?: string | null;
+  };
 
-  Language: undefined;
+  Language: {
+    profilePhotoUrl?: string | null;
+    displayName: string;
+    username: string;
+  };
 
-  Country: undefined;
+  Country: {
+    profilePhotoUrl?: string | null;
+    displayName: string;
+    username: string;
+    nativeLanguage: string;
+  };
 
-  ProfileComplete: undefined;
+  ProfileComplete: {
+    profilePhotoUrl?: string | null;
+    displayName: string;
+    username: string;
+    nativeLanguage: string;
+    country: string;
+  };
 };
 
 /*
@@ -42,6 +66,8 @@ export type AppStackParamList = {
 export type RootStackParamList = {
   Auth: undefined;
 
+  ProfileSetup: undefined;
+
   App: undefined;
 };
 
@@ -51,6 +77,16 @@ export type RootStackParamList = {
 export type AuthScreenProps<
   T extends keyof AuthStackParamList,
 > = NativeStackScreenProps<AuthStackParamList, T>;
+
+/*
+ * Profile setup screen props
+ */
+export type ProfileSetupScreenProps<
+  T extends keyof ProfileSetupStackParamList,
+> = NativeStackScreenProps<
+  ProfileSetupStackParamList,
+  T
+>;
 
 /*
  * Main application screen props

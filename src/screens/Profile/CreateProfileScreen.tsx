@@ -13,28 +13,58 @@ import {COLORS} from '../../constants/colors';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
-const CreateProfileScreen = ({navigation}: Props) => {
+const CreateProfileScreen = ({
+  navigation,
+  route,
+}: Props) => {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
 
+  const profilePhotoUrl =
+    route.params?.profilePhotoUrl || null;
+
   const handleContinue = () => {
-    navigation.navigate('Language');
+    if (!name.trim()) {
+      return;
+    }
+
+    if (!username.trim()) {
+      return;
+    }
+
+    navigation.navigate('Language', {
+      profilePhotoUrl,
+      displayName: name.trim(),
+      username: username.trim().toLowerCase(),
+    });
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior={
+        Platform.OS === 'ios'
+          ? 'padding'
+          : undefined
+      }>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>STEP 1 OF 4</Text>
+        <Text style={styles.step}>
+          STEP 1 OF 4
+        </Text>
 
-        <Text style={styles.title}>Tell us about yourself</Text>
+        <Text style={styles.title}>
+          Tell us about yourself
+        </Text>
 
         <Text style={styles.subtitle}>
-          This information helps people recognize you on DualWave.
+          This information helps people recognize you
+          on DualWave.
         </Text>
 
         <Input
@@ -51,6 +81,7 @@ const CreateProfileScreen = ({navigation}: Props) => {
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <Button

@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 
 import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 
 import SplashScreen from '../screens/Splash/SplashScreen';
+
 import AuthNavigator from './AuthNavigator';
+import ProfileSetupNavigator from './ProfileSetupNavigator';
 import AppNavigator from './AppNavigator';
 
-import { RootStackParamList } from '../types/navigation';
-import { useAuthStore } from '../store/authStore';
+import {RootStackParamList} from '../types/navigation';
+import {useAuthStore} from '../store/authStore';
 
 const Stack =
   createNativeStackNavigator<RootStackParamList>();
@@ -20,6 +22,10 @@ const RootNavigator = () => {
 
   const isAuthenticated = useAuthStore(
     state => state.isAuthenticated,
+  );
+
+  const hasProfile = useAuthStore(
+    state => state.hasProfile,
   );
 
   const isHydrated = useAuthStore(
@@ -42,9 +48,6 @@ const RootNavigator = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Keep showing Splash until:
-  // 1. Splash timer has finished
-  // 2. Authentication state has been restored
   if (!isSplashFinished || !isHydrated) {
     return <SplashScreen />;
   }
@@ -55,15 +58,20 @@ const RootNavigator = () => {
         headerShown: false,
       }}>
 
-      {isAuthenticated ? (
-        <Stack.Screen
-          name="App"
-          component={AppNavigator}
-        />
-      ) : (
+      {!isAuthenticated ? (
         <Stack.Screen
           name="Auth"
           component={AuthNavigator}
+        />
+      ) : !hasProfile ? (
+        <Stack.Screen
+          name="ProfileSetup"
+          component={ProfileSetupNavigator}
+        />
+      ) : (
+        <Stack.Screen
+          name="App"
+          component={AppNavigator}
         />
       )}
 

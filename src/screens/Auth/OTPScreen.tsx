@@ -67,21 +67,15 @@ const OTPScreen = ({ navigation, route }: Props) => {
     }
   };
 
-  const handleVerify = async () => {
-    const code = otp.join('');
+const handleVerify = async () => {
+  const code = otp.join('');
 
-    if (code.length !== 6) {
-      return;
-    }
+  if (code.length !== 6) {
+    return;
+  }
 
-    await verifyEmailOtp(email, code);
-
-    const state = useAuthStore.getState();
-
-    if (state.isAuthenticated) {
-      navigation.navigate('ProfilePhoto');
-    }
-  };
+  await verifyEmailOtp(email, code);
+};
 
   return (
     <View style={styles.container}>

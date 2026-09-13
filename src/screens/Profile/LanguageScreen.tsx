@@ -11,6 +11,7 @@ import {COLORS} from '../../constants/colors';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
 const languages = [
@@ -26,47 +27,79 @@ const languages = [
   'Arabic',
 ];
 
-const LanguageScreen = ({navigation}: Props) => {
+const LanguageScreen = ({
+  navigation,
+  route,
+}: Props) => {
   const [selected, setSelected] = useState('');
+
+  const {
+    profilePhotoUrl,
+    displayName,
+    username,
+  } = route.params || {};
 
   const selectLanguage = (language: string) => {
     setSelected(language);
+  };
+
+  const handleContinue = () => {
+    if (!selected) {
+      return;
+    }
+
+    navigation.navigate('Country', {
+      profilePhotoUrl,
+      displayName,
+      username,
+      nativeLanguage: selected,
+    });
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.step}>STEP 2 OF 4</Text>
 
-      <Text style={styles.title}>What's your native language?</Text>
+      <Text style={styles.title}>
+        What's your native language?
+      </Text>
 
       <Text style={styles.subtitle}>
-        We'll use this to personalize your communication experience.
+        We'll use this to personalize your communication
+        experience.
       </Text>
 
       <View style={styles.list}>
         {languages.map(language => {
-          const isSelected = selected === language;
+          const isSelected =
+            selected === language;
 
           return (
             <TouchableOpacity
               key={language}
               style={[
                 styles.language,
-                isSelected && styles.selectedLanguage,
+                isSelected &&
+                  styles.selectedLanguage,
               ]}
-              onPress={() => selectLanguage(language)}
+              onPress={() =>
+                selectLanguage(language)
+              }
               activeOpacity={0.8}>
 
               <Text
                 style={[
                   styles.languageText,
-                  isSelected && styles.selectedText,
+                  isSelected &&
+                    styles.selectedText,
                 ]}>
                 {language}
               </Text>
 
               {isSelected && (
-                <Text style={styles.check}>✓</Text>
+                <Text style={styles.check}>
+                  ✓
+                </Text>
               )}
             </TouchableOpacity>
           );
@@ -76,7 +109,7 @@ const LanguageScreen = ({navigation}: Props) => {
       <View style={styles.bottom}>
         <Button
           title="Continue"
-          onPress={() => navigation.navigate('Country')}
+          onPress={handleContinue}
           disabled={!selected}
         />
       </View>

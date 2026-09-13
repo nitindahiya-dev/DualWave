@@ -1,24 +1,16 @@
 import React from 'react';
-
 import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 
-import {AuthStackParamList} from '../types/navigation';
-
-import WelcomeScreen from '../screens/Welcome/WelcomeScreen';
 
 import LoginScreen from '../screens/Auth/LoginScreen';
 import RegisterScreen from '../screens/Auth/RegisterScreen';
 import OTPScreen from '../screens/Auth/OTPScreen';
 import ForgotPasswordScreen from '../screens/Auth/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/Auth/ResetPasswordScreen';
-
-import ProfilePhotoScreen from '../screens/Profile/ProfilePhotoScreen';
-import CreateProfileScreen from '../screens/Profile/CreateProfileScreen';
-import LanguageScreen from '../screens/Profile/LanguageScreen';
-import CountryScreen from '../screens/Profile/CountryScreen';
-import ProfileCompleteScreen from '../screens/Profile/ProfileCompleteScreen';
+import {AuthStackParamList} from '../types/navigation';
+import WelcomeScreen from '../screens/Welcome/WelcomeScreen';
 
 const Stack =
   createNativeStackNavigator<AuthStackParamList>();
@@ -58,31 +50,6 @@ const AuthNavigator = () => {
       <Stack.Screen
         name="ResetPassword"
         component={ResetPasswordScreen}
-      />
-
-      <Stack.Screen
-        name="ProfilePhoto"
-        component={ProfilePhotoScreen}
-      />
-
-      <Stack.Screen
-        name="CreateProfile"
-        component={CreateProfileScreen}
-      />
-
-      <Stack.Screen
-        name="Language"
-        component={LanguageScreen}
-      />
-
-      <Stack.Screen
-        name="Country"
-        component={CountryScreen}
-      />
-
-      <Stack.Screen
-        name="ProfileComplete"
-        component={ProfileCompleteScreen}
       />
 
     </Stack.Navigator>
