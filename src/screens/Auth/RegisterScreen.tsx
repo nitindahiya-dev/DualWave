@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,7 +10,8 @@ import {
 
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import {COLORS} from '../../constants/colors';
+import { COLORS } from '../../constants/colors';
+import { useAuthStore } from '../../store/authStore';
 
 interface Props {
   navigation: any;
@@ -23,11 +24,27 @@ interface FormErrors {
   confirmPassword?: string;
 }
 
-const RegisterScreen = ({navigation}: Props) => {
+const RegisterScreen = ({ navigation }: Props) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const register = useAuthStore(
+    state => state.register,
+  );
+
+  const isLoading = useAuthStore(
+    state => state.isLoading,
+  );
+
+  const authError = useAuthStore(
+    state => state.authError,
+  );
+
+  const clearAuthError = useAuthStore(
+    state => state.clearAuthError,
+  );
 
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -73,19 +90,36 @@ const RegisterScreen = ({navigation}: Props) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const isValid = validateForm();
 
     if (!isValid) {
       return;
     }
 
-    // Registration API will be connected later.
-    navigation.navigate('OTP');
+    const result = await register(
+      name,
+      email,
+      password,
+    );
+
+    if (result.needsEmailConfirmation) {
+      navigation.navigate('OTP', {
+        email: email.trim().toLowerCase(),
+      });
+
+      return;
+    }
+
+    if (useAuthStore.getState().isAuthenticated) {
+      return;
+    }
   };
 
   const handleNameChange = (value: string) => {
     setName(value);
+
+    clearAuthError();
 
     if (errors.name) {
       setErrors(previous => ({
@@ -98,6 +132,8 @@ const RegisterScreen = ({navigation}: Props) => {
   const handleEmailChange = (value: string) => {
     setEmail(value);
 
+    clearAuthError();
+
     if (errors.email) {
       setErrors(previous => ({
         ...previous,
@@ -108,6 +144,8 @@ const RegisterScreen = ({navigation}: Props) => {
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
+
+    clearAuthError();
 
     if (errors.password || errors.confirmPassword) {
       setErrors(previous => ({
@@ -120,6 +158,8 @@ const RegisterScreen = ({navigation}: Props) => {
 
   const handleConfirmPasswordChange = (value: string) => {
     setConfirmPassword(value);
+
+    clearAuthError();
 
     if (errors.confirmPassword) {
       setErrors(previous => ({
@@ -154,6 +194,11 @@ const RegisterScreen = ({navigation}: Props) => {
         </View>
 
         <View style={styles.form}>
+          {authError && (
+            <Text style={styles.authError}>
+              {authError}
+            </Text>
+          )}
           <Input
             label="Full name"
             placeholder="Your name"
@@ -199,6 +244,8 @@ const RegisterScreen = ({navigation}: Props) => {
           <Button
             title="Create account"
             onPress={handleRegister}
+            loading={isLoading}
+            disabled={isLoading}
           />
         </View>
 
@@ -223,6 +270,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+
+  authError: {
+    color: COLORS.error,
+    fontSize: 14,
+    marginBottom: 16,
+    lineHeight: 20,
   },
 
   content: {

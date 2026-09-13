@@ -1,6 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {create} from 'zustand';
-import {persist, createJSONStorage} from 'zustand/middleware';
+import { create } from 'zustand';
+
+import {
+  getCurrentSession,
+  signIn,
+  signOut,
+  signUp,
+  verifyEmailOtp,
+  resendSignupEmail,
+} from '../services/auth/authService';
+
+import { supabase } from '../services/supabase/supabaseClient';
 
 interface User {
   id: string;
@@ -15,89 +24,268 @@ interface AuthState {
   isHydrated: boolean;
   authError: string | null;
 
+  initializeAuth: () => Promise<void>;
+
+  register: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<{
+    needsEmailConfirmation: boolean;
+  }>;
+
+  verifyEmailOtp: (
+    email: string,
+    token: string,
+  ) => Promise<void>;
+
+  resendSignupEmail: (
+    email: string,
+  ) => Promise<void>;
+
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   clearAuthError: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    set => ({
-      user: null,
-      isAuthenticated: false,
+const mapSupabaseUser = (
+  supabaseUser: {
+    id: string;
+    email?: string;
+    user_metadata?: {
+      name?: string;
+    };
+  } | null,
+): User | null => {
+  if (!supabaseUser) {
+    return null;
+  }
 
-      isLoading: false,
-      isHydrated: false,
+  return {
+    id: supabaseUser.id,
+    name:
+      supabaseUser.user_metadata?.name ||
+      'DualWave User',
+    email: supabaseUser.email || '',
+  };
+};
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  isHydrated: false,
+  authError: null,
+
+  initializeAuth: async () => {
+    try {
+      const session = await getCurrentSession();
+
+      const user = mapSupabaseUser(
+        session?.user || null,
+      );
+
+      set({
+        user,
+        isAuthenticated: !!session,
+        isHydrated: true,
+        authError: null,
+      });
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+
+      set({
+        user: null,
+        isAuthenticated: false,
+        isHydrated: true,
+        authError: 'Unable to restore your session.',
+      });
+    }
+  },
+
+  register: async (name, email, password) => {
+    set({
+      isLoading: true,
       authError: null,
+    });
 
-      login: async (email, password) => {
-        set({
-          isLoading: true,
-          authError: null,
-        });
+    try {
+      const data = await signUp({
+        name,
+        email,
+        password,
+      });
 
-        // Temporary delay to simulate a real API request.
-        await new Promise<void>(resolve => {
-          setTimeout(() => resolve(), 1200);
-        });
+      const needsEmailConfirmation =
+        !!data.user && !data.session;
 
-        // Temporary demo credentials.
-        if (
-          email.trim().toLowerCase() !== 'test@test.com' ||
-          password !== '12345678'
-        ) {
-          set({
-            isLoading: false,
-            authError: 'Invalid email or password.',
-          });
+      set({
+        isLoading: false,
+        authError: null,
+      });
 
-          return;
-        }
+      return {
+        needsEmailConfirmation,
+      };
+    } catch (error: any) {
+      console.error('Registration error:', error);
 
-        set({
-          user: {
-            id: 'demo-user-001',
-            name: 'DualWave User',
-            email: email.trim().toLowerCase(),
-          },
-          isAuthenticated: true,
-          isLoading: false,
-          authError: null,
-        });
-      },
+      const message =
+        error?.message ||
+        'Unable to create your account. Please try again.';
 
-      logout: () =>
-        set({
-          user: null,
-          isAuthenticated: false,
-          authError: null,
-          isLoading: false,
-        }),
+      set({
+        isLoading: false,
+        authError: message,
+      });
 
-      clearAuthError: () =>
-        set({
-          authError: null,
-        }),
-    }),
+      return {
+        needsEmailConfirmation: false,
+      };
+    }
+  },
 
-    {
-      name: 'dualwave-auth',
+  verifyEmailOtp: async (email, token) => {
+    set({
+      isLoading: true,
+      authError: null,
+    });
 
-      storage: createJSONStorage(() => AsyncStorage),
+    try {
+      const data = await verifyEmailOtp(
+        email,
+        token,
+      );
 
-      // Only persist actual authentication data.
-      partialize: state => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
+      const user = mapSupabaseUser(
+        data.user,
+      );
 
-      onRehydrateStorage: () => {
-        return () => {
-          useAuthStore.setState({
-            isHydrated: true,
-          });
-        };
-      },
-    },
-  ),
-);
+      set({
+        user,
+        isAuthenticated: !!data.session,
+        isLoading: false,
+        authError: null,
+      });
+    } catch (error: any) {
+      console.error(
+        'Email verification error:',
+        error,
+      );
+
+      set({
+        isLoading: false,
+        authError:
+          error?.message ||
+          'Invalid verification code.',
+      });
+    }
+  },
+
+  resendSignupEmail: async (email) => {
+    set({
+      isLoading: true,
+      authError: null,
+    });
+
+    try {
+      await resendSignupEmail(email);
+
+      set({
+        isLoading: false,
+        authError: null,
+      });
+    } catch (error: any) {
+      console.error(
+        'Resend verification error:',
+        error,
+      );
+
+      set({
+        isLoading: false,
+        authError:
+          error?.message ||
+          'Unable to resend the verification code.',
+      });
+    }
+  },
+
+  login: async (email, password) => {
+    set({
+      isLoading: true,
+      authError: null,
+    });
+
+    try {
+      const data = await signIn(email, password);
+
+      const user = mapSupabaseUser(
+        data.user,
+      );
+
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        authError: null,
+      });
+    } catch (error: any) {
+      console.error('Login error:', error);
+
+      set({
+        isLoading: false,
+        authError:
+          error?.message ||
+          'Unable to sign in. Please try again.',
+      });
+    }
+  },
+
+  logout: async () => {
+    set({
+      isLoading: true,
+      authError: null,
+    });
+
+    try {
+      await signOut();
+
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        authError: null,
+      });
+    } catch (error: any) {
+      console.error('Logout error:', error);
+
+      set({
+        isLoading: false,
+        authError:
+          error?.message ||
+          'Unable to log out. Please try again.',
+      });
+    }
+  },
+
+  clearAuthError: () => {
+    set({
+      authError: null,
+    });
+  },
+}));
+
+/**
+ * Listen for Supabase authentication changes.
+ */
+supabase.auth.onAuthStateChange((_event, session) => {
+  const user = mapSupabaseUser(
+    session?.user || null,
+  );
+
+  useAuthStore.setState({
+    user,
+    isAuthenticated: !!session,
+    isHydrated: true,
+  });
+});

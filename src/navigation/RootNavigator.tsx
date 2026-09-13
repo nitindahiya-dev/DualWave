@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   createNativeStackNavigator,
@@ -8,8 +8,8 @@ import SplashScreen from '../screens/Splash/SplashScreen';
 import AuthNavigator from './AuthNavigator';
 import AppNavigator from './AppNavigator';
 
-import {RootStackParamList} from '../types/navigation';
-import {useAuthStore} from '../store/authStore';
+import { RootStackParamList } from '../types/navigation';
+import { useAuthStore } from '../store/authStore';
 
 const Stack =
   createNativeStackNavigator<RootStackParamList>();
@@ -25,6 +25,14 @@ const RootNavigator = () => {
   const isHydrated = useAuthStore(
     state => state.isHydrated,
   );
+
+  const initializeAuth = useAuthStore(
+    state => state.initializeAuth,
+  );
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -5,9 +5,17 @@ import {
   View,
 } from 'react-native';
 
+import Button from '../../components/common/Button';
 import {COLORS} from '../../constants/colors';
+import {useAuthStore} from '../../store/authStore';
 
 const HomeScreen = () => {
+  const logout = useAuthStore(state => state.logout);
+
+  const handleLogout = async() => {
+    await logout();
+  };
+
   return (
     <View style={styles.container}>
       <View>
@@ -28,6 +36,13 @@ const HomeScreen = () => {
         <Text style={styles.cardText}>
           Your communication tools will appear here.
         </Text>
+      </View>
+
+      <View style={styles.logoutContainer}>
+        <Button
+          title="Log out"
+          onPress={handleLogout}
+        />
       </View>
     </View>
   );
@@ -79,6 +94,11 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: COLORS.secondary,
     marginTop: 8,
+  },
+
+  logoutContainer: {
+    marginTop: 'auto',
+    paddingBottom: 20,
   },
 });
 

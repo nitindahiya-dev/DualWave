@@ -1,22 +1,48 @@
-import React, {useRef, useState} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-
+import { useAuthStore } from '../../store/authStore';
 import Button from '../../components/common/Button';
-import {COLORS} from '../../constants/colors';
+import { COLORS } from '../../constants/colors';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
-const OTPScreen = ({navigation}: Props) => {
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+const OTPScreen = ({ navigation, route }: Props) => {
+  const email = route.params?.email;
 
-  const inputs = useRef<Array<TextInput | null>>([]);
+  const verifyEmailOtp = useAuthStore(
+    state => state.verifyEmailOtp,
+  );
+  const resendSignupEmail = useAuthStore(
+    state => state.resendSignupEmail,
+  );
+  const isLoading = useAuthStore(
+    state => state.isLoading,
+  );
+  const authError = useAuthStore(
+    state => state.authError,
+  );
+  const clearAuthError = useAuthStore(
+    state => state.clearAuthError,
+  );
+
+  const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
+
+  const inputs = useRef<
+    Array<React.ElementRef<typeof TextInput> | null>
+  >([]);
+
+  useEffect(() => {
+    clearAuthError();
+    return () => clearAuthError();
+  }, [clearAuthError]);
 
   const handleChange = (value: string, index: number) => {
     const digit = value.replace(/[^0-9]/g, '');
@@ -26,7 +52,7 @@ const OTPScreen = ({navigation}: Props) => {
 
     setOtp(newOtp);
 
-    if (digit && index < 5) {
+    if (digit && index < 7) {
       inputs.current[index + 1]?.focus();
     }
   };
@@ -41,12 +67,20 @@ const OTPScreen = ({navigation}: Props) => {
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const code = otp.join('');
 
-    console.log('OTP:', code);
+    if (code.length !== 8) {
+      return;
+    }
 
-    navigation.navigate('ProfilePhoto');
+    await verifyEmailOtp(email, code);
+
+    const state = useAuthStore.getState();
+
+    if (state.isAuthenticated) {
+      navigation.navigate('ProfilePhoto');
+    }
   };
 
   return (
@@ -61,9 +95,15 @@ const OTPScreen = ({navigation}: Props) => {
         <Text style={styles.title}>Verify your account</Text>
 
         <Text style={styles.subtitle}>
-          We've sent a 6-digit verification code to your email.
+          We've sent a 8-digit verification code to your email.
         </Text>
       </View>
+
+      {authError && (
+        <Text style={styles.authError}>
+          {authError}
+        </Text>
+      )}
 
       <View style={styles.otpContainer}>
         {otp.map((digit, index) => (
@@ -85,13 +125,19 @@ const OTPScreen = ({navigation}: Props) => {
 
       <Text style={styles.resend}>
         Didn't receive the code?{' '}
-        <Text style={styles.resendLink}>Resend</Text>
+        <Text
+          style={styles.resendLink}
+          onPress={() => resendSignupEmail(email)}>
+          Resend
+        </Text>
       </Text>
 
       <View style={styles.buttonContainer}>
         <Button
           title="Verify"
           onPress={handleVerify}
+          loading={isLoading}
+          disabled={isLoading}
         />
       </View>
     </View>
@@ -128,6 +174,13 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: COLORS.secondary,
     marginTop: 12,
+  },
+
+  authError: {
+    color: '#D32F2F',
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
   },
 
   otpContainer: {
