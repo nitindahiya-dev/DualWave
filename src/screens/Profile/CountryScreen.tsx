@@ -1,11 +1,20 @@
-import React, {useState} from 'react';
+import React, {
+  useMemo,
+  useState,
+} from 'react';
+
 import {
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import {
+  countries,
+} from 'countries-list';
 
 import Button from '../../components/common/Button';
 import {COLORS} from '../../constants/colors';
@@ -15,24 +24,30 @@ interface Props {
   route: any;
 }
 
-const countries = [
-  'India',
-  'United States',
-  'United Kingdom',
-  'Canada',
-  'Australia',
-  'Germany',
-  'France',
-  'Japan',
-  'South Korea',
-  'Singapore',
-];
+interface CountryItem {
+  code: string;
+  name: string;
+}
+
+const countryList: CountryItem[] =
+  Object.entries(countries)
+    .map(([code, country]) => ({
+      code,
+      name: country.name,
+    }))
+    .sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
 
 const CountryScreen = ({
   navigation,
   route,
 }: Props) => {
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] =
+    useState<CountryItem | null>(null);
+
+  const [search, setSearch] =
+    useState('');
 
   const {
     profilePhotoUrl,
@@ -41,52 +56,95 @@ const CountryScreen = ({
     nativeLanguage,
   } = route.params || {};
 
+  const filteredCountries =
+    useMemo(() => {
+      const term =
+        search.trim().toLowerCase();
+
+      if (!term) {
+        return countryList;
+      }
+
+      return countryList.filter(country =>
+        country.name
+          .toLowerCase()
+          .includes(term),
+      );
+    }, [search]);
+
   const handleContinue = () => {
     if (!selected) {
       return;
     }
 
-    navigation.navigate('ProfileComplete', {
-      profilePhotoUrl,
-      displayName,
-      username,
-      nativeLanguage,
-      country: selected,
-    });
+    navigation.navigate(
+      'ProfileComplete',
+      {
+        profilePhotoUrl,
+        displayName,
+        username,
+        nativeLanguage,
+        country: selected.name,
+      },
+    );
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.step}>
+        STEP 3 OF 4
+      </Text>
 
-        <Text style={styles.step}>
-          STEP 3 OF 4
-        </Text>
+      <Text style={styles.title}>
+        Where are you from?
+      </Text>
 
-        <Text style={styles.title}>
-          Where are you from?
-        </Text>
+      <Text style={styles.subtitle}>
+        Your country helps us personalize
+        your DualWave experience.
+      </Text>
 
-        <Text style={styles.subtitle}>
-          Your country helps us personalize your
-          DualWave experience.
-        </Text>
+      <TextInput
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search countries..."
+        placeholderTextColor={
+          COLORS.secondary
+        }
+        style={styles.searchInput}
+        autoCorrect={false}
+        autoCapitalize="words"
+      />
 
-        {countries.map(country => {
+      <Text style={styles.resultCount}>
+        {filteredCountries.length}{' '}
+        {filteredCountries.length === 1
+          ? 'country'
+          : 'countries'}
+      </Text>
+
+      <FlatList
+        data={filteredCountries}
+        keyExtractor={item => item.code}
+        style={styles.list}
+        contentContainerStyle={
+          styles.listContent
+        }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        renderItem={({item}) => {
           const isSelected =
-            selected === country;
+            selected?.code === item.code;
 
           return (
             <TouchableOpacity
-              key={country}
               style={[
                 styles.country,
                 isSelected &&
                   styles.selectedCountry,
               ]}
               onPress={() =>
-                setSelected(country)
+                setSelected(item)
               }
               activeOpacity={0.8}>
 
@@ -96,7 +154,7 @@ const CountryScreen = ({
                   isSelected &&
                     styles.selectedText,
                 ]}>
-                {country}
+                {item.name}
               </Text>
 
               {isSelected && (
@@ -106,8 +164,28 @@ const CountryScreen = ({
               )}
             </TouchableOpacity>
           );
-        })}
-      </ScrollView>
+        }}
+        ListEmptyComponent={
+          <View
+            style={
+              styles.emptyContainer
+            }>
+            <Text
+              style={
+                styles.emptyTitle
+              }>
+              No countries found
+            </Text>
+
+            <Text
+              style={
+                styles.emptyText
+              }>
+              Try another country name.
+            </Text>
+          </View>
+        }
+      />
 
       <View style={styles.bottom}>
         <Button
@@ -124,12 +202,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-
-  scrollContent: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 20,
   },
 
   step: {
@@ -151,7 +225,33 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: COLORS.secondary,
     marginTop: 12,
-    marginBottom: 28,
+    marginBottom: 20,
+  },
+
+  searchInput: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    fontSize: 15,
+    color: COLORS.primary,
+    backgroundColor: COLORS.surface,
+  },
+
+  resultCount: {
+    fontSize: 12,
+    color: COLORS.secondary,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+
+  list: {
+    flex: 1,
+  },
+
+  listContent: {
+    paddingBottom: 10,
   },
 
   country: {
@@ -168,7 +268,8 @@ const styles = StyleSheet.create({
 
   selectedCountry: {
     borderColor: COLORS.accent,
-    backgroundColor: COLORS.accentLight,
+    backgroundColor:
+      COLORS.accentLight,
   },
 
   countryText: {
@@ -187,9 +288,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 40,
+  },
+
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
+  emptyText: {
+    fontSize: 13,
+    color: COLORS.secondary,
+    marginTop: 6,
+  },
+
   bottom: {
-    padding: 24,
     paddingTop: 12,
+    paddingBottom: 20,
   },
 });
 
