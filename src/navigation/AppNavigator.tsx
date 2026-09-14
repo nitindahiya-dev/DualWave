@@ -6,11 +6,12 @@ import {
 
 import HomeScreen from '../screens/Home/HomeScreen';
 
-import {AppStackParamList} from '../types/navigation';
+import { AppStackParamList } from '../types/navigation';
 import PeopleScreen from '../screens/People/PeopleScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 import ContactsScreen from '../screens/Contacts/ContactsScreen';
 import UserProfileScreen from '../screens/People/UserProfileScreen';
+import ConversationScreen from '../screens/Conversation/ConversationScreen';
 
 const Stack =
   createNativeStackNavigator<AppStackParamList>();
@@ -45,6 +46,14 @@ const AppNavigator = () => {
         component={UserProfileScreen}
         options={{
           title: 'Profile',
+        }}
+      />
+
+      <Stack.Screen
+        name="Conversation"
+        component={ConversationScreen}
+        options={{
+          title: 'Conversation',
         }}
       />
 

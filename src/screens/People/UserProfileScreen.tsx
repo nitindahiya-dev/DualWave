@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import {COLORS} from '../../constants/colors';
+import { COLORS } from '../../constants/colors';
 
 import {
   PublicUser,
@@ -34,7 +34,8 @@ import {
   supabase,
 } from '../../services/supabase/supabaseClient';
 
-import {AppScreenProps} from '../../types/navigation';
+import { AppScreenProps } from '../../types/navigation';
+import { getOrCreateDirectConversation } from '../../services/communication/conversationService';
 
 type Props = AppScreenProps<'UserProfile'>;
 
@@ -42,7 +43,7 @@ const UserProfileScreen = ({
   navigation,
   route,
 }: Props) => {
-  const {userId} = route.params;
+  const { userId } = route.params;
 
   const [user, setUser] =
     useState<PublicUser | null>(null);
@@ -72,7 +73,7 @@ const UserProfileScreen = ({
 
     try {
       const {
-        data: {user: currentUser},
+        data: { user: currentUser },
         error: authError,
       } = await supabase.auth.getUser();
 
@@ -108,7 +109,7 @@ const UserProfileScreen = ({
 
       setError(
         profileError?.message ||
-          'Unable to load this profile.',
+        'Unable to load this profile.',
       );
     } finally {
       setIsLoading(false);
@@ -132,7 +133,7 @@ const UserProfileScreen = ({
 
       setError(
         contactError?.message ||
-          'Unable to send contact request.',
+        'Unable to send contact request.',
       );
     } finally {
       setIsProcessing(false);
@@ -162,12 +163,40 @@ const UserProfileScreen = ({
 
       setError(
         contactError?.message ||
-          'Unable to accept contact request.',
+        'Unable to accept contact request.',
       );
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const handleOpenConversation = async () => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const conversationId =
+        await getOrCreateDirectConversation(userId);
+
+      navigation.navigate('Conversation', {
+        conversationId,
+        otherUserId: userId,
+      });
+    } catch (conversationError: any) {
+      console.error(
+        'Open conversation error:',
+        conversationError,
+      );
+
+      setError(
+        conversationError?.message ||
+        'Unable to open conversation.',
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
 
   const handleDecline = async () => {
     if (!contact) {
@@ -192,7 +221,7 @@ const UserProfileScreen = ({
 
       setError(
         contactError?.message ||
-          'Unable to decline contact request.',
+        'Unable to decline contact request.',
       );
     } finally {
       setIsProcessing(false);
@@ -234,7 +263,7 @@ const UserProfileScreen = ({
 
               setError(
                 removeError?.message ||
-                  'Unable to remove contact.',
+                'Unable to remove contact.',
               );
             } finally {
               setIsProcessing(false);
@@ -371,8 +400,8 @@ const UserProfileScreen = ({
           value={
             user.spokenLanguages.length
               ? user.spokenLanguages.join(
-                  ', ',
-                )
+                ', ',
+              )
               : 'Not provided'
           }
           last
@@ -496,28 +525,40 @@ const UserProfileScreen = ({
 
             <Pressable
               style={styles.primaryButton}
-              onPress={() =>
-                navigation.navigate(
-                  'Contacts',
-                )
-              }>
+              onPress={handleOpenConversation}
+              disabled={isProcessing}>
 
-              <Text
-                style={
-                  styles.primaryButtonText
-                }>
-                Open Contacts
-              </Text>
+              {isProcessing ? (
+                <ActivityIndicator
+                  color="#FFFFFF"
+                />
+              ) : (
+                <Text
+                  style={
+                    styles.primaryButtonText
+                  }>
+                  Message
+                </Text>
+              )}
 
             </Pressable>
 
             <Pressable
-              style={
-                styles.removeButton
-              }
-              onPress={
-                handleRemoveContact
-              }
+              style={styles.secondaryButton}
+              onPress={() =>
+                navigation.navigate('Contacts')
+              }>
+              <Text
+                style={
+                  styles.secondaryButtonText
+                }>
+                Open Contacts
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.removeButton}
+              onPress={handleRemoveContact}
               disabled={isProcessing}>
 
               {isProcessing ? (
@@ -526,9 +567,7 @@ const UserProfileScreen = ({
                 />
               ) : (
                 <Text
-                  style={
-                    styles.removeButtonText
-                  }>
+                  style={styles.removeButtonText}>
                   Remove Contact
                 </Text>
               )}

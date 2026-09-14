@@ -33,6 +33,7 @@ import {
 } from '../../services/communication/userService';
 
 import {AppScreenProps} from '../../types/navigation';
+import { getOrCreateDirectConversation } from '../../services/communication/conversationService';
 
 type Props = AppScreenProps<'Contacts'>;
 
@@ -200,6 +201,37 @@ const ContactsScreen = ({
       setError(
         acceptError?.message ||
           'Unable to accept contact request.',
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleOpenConversation = async (
+    otherUserId: string,
+  ) => {
+    try {
+      setProcessingId(otherUserId);
+      setError(null);
+
+      const conversationId =
+        await getOrCreateDirectConversation(
+          otherUserId,
+        );
+
+      navigation.navigate('Conversation', {
+        conversationId,
+        otherUserId,
+      });
+    } catch (conversationError: any) {
+      console.error(
+        'Open conversation error:',
+        conversationError,
+      );
+
+      setError(
+        conversationError?.message ||
+          'Unable to open conversation.',
       );
     } finally {
       setProcessingId(null);
@@ -458,70 +490,102 @@ const ContactsScreen = ({
       ) : (
         contacts.map(
           ({contact, user}) => (
-            <Pressable
+            <View
               key={contact.id}
-              style={styles.contactCard}
-              onPress={() => {
-                if (user) {
-                  navigation.navigate(
-                    'UserProfile',
-                    {
-                      userId: user.id,
-                    },
-                  );
-                }
-              }}>
+              style={styles.contactCard}>
 
-              {user?.profilePhotoUrl ? (
-                <Image
-                  source={{
-                    uri:
-                      user.profilePhotoUrl,
-                  }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View
-                  style={
-                    styles.avatarPlaceholder
-                  }>
-                  <Text
+              <Pressable
+                style={styles.userInfo}
+                onPress={() => {
+                  if (user) {
+                    navigation.navigate(
+                      'UserProfile',
+                      {
+                        userId: user.id,
+                      },
+                    );
+                  }
+                }}>
+
+                {user?.profilePhotoUrl ? (
+                  <Image
+                    source={{
+                      uri:
+                        user.profilePhotoUrl,
+                    }}
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <View
                     style={
-                      styles.avatarText
+                      styles.avatarPlaceholder
                     }>
-                    {user?.displayName
-                      ?.charAt(0)
-                      .toUpperCase() ||
-                      '?'}
-                  </Text>
-                </View>
-              )}
-
-              <View
-                style={
-                  styles.userTextContainer
-                }>
-                <Text
-                  style={styles.userName}>
-                  {user?.displayName ||
-                    'Unknown user'}
-                </Text>
-
-                {user?.username && (
-                  <Text
-                    style={
-                      styles.username
-                    }>
-                    @{user.username}
-                  </Text>
+                    <Text
+                      style={
+                        styles.avatarText
+                      }>
+                      {user?.displayName
+                        ?.charAt(0)
+                        .toUpperCase() ||
+                        '?'}
+                    </Text>
+                  </View>
                 )}
 
-                <Text
-                  style={styles.connectedText}>
-                  Contact
-                </Text>
-              </View>
-            </Pressable>
+                <View
+                  style={
+                    styles.userTextContainer
+                  }>
+                  <Text
+                    style={styles.userName}>
+                    {user?.displayName ||
+                      'Unknown user'}
+                  </Text>
+
+                  {user?.username && (
+                    <Text
+                      style={styles.username}>
+                      @{user.username}
+                    </Text>
+                  )}
+
+                  <Text
+                    style={styles.connectedText}>
+                    Contact
+                  </Text>
+                </View>
+
+              </Pressable>
+
+              {user && (
+                <Pressable
+                  style={styles.messageButton}
+                  onPress={() =>
+                    handleOpenConversation(
+                      user.id,
+                    )
+                  }
+                  disabled={
+                    processingId === user.id
+                  }>
+
+                  {processingId === user.id ? (
+                    <ActivityIndicator
+                      color="#FFFFFF"
+                    />
+                  ) : (
+                    <Text
+                      style={
+                        styles.messageButtonText
+                      }>
+                      Message
+                    </Text>
+                  )}
+
+                </Pressable>
+              )}
+
+            </View>
           ),
         )
       )}
@@ -588,6 +652,7 @@ const styles = StyleSheet.create({
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
 
   avatar: {
@@ -677,14 +742,28 @@ const styles = StyleSheet.create({
   },
 
   contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
+  },
+
+  messageButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    marginTop: 14,
+  },
+
+  messageButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 
   connectedText: {
