@@ -32,12 +32,29 @@ import {
   sendTextMessage,
 } from '../../services/communication/messageService';
 
+import {
+  getMessageTranslation,
+  saveMessageTranslation,
+} from '../../services/communication/messageTranslationService';
+
+import {
+  translateMessage,
+} from '../../services/communication/translationService';
+
 import {supabase} from '../../services/supabase/supabaseClient';
 
 import {AppScreenProps} from '../../types/navigation';
 
-type Props =
-  AppScreenProps<'Conversation'>;
+type Props = AppScreenProps<'Conversation'>;
+
+interface ViewerProfile {
+  nativeLanguage: string | null;
+  preferredLanguage: string | null;
+}
+
+interface TranslationMap {
+  [messageId: string]: string;
+}
 
 const ConversationScreen = ({
   route,
@@ -50,8 +67,20 @@ const ConversationScreen = ({
   const [otherUser, setOtherUser] =
     useState<PublicUser | null>(null);
 
+  const [viewerProfile, setViewerProfile] =
+    useState<ViewerProfile | null>(null);
+
+  const [currentUserId, setCurrentUserId] =
+    useState<string | null>(null);
+
   const [messages, setMessages] =
     useState<Message[]>([]);
+
+  const [translations, setTranslations] =
+    useState<TranslationMap>({});
+
+  const [translatingMessages, setTranslatingMessages] =
+    useState<Record<string, boolean>>({});
 
   const [text, setText] =
     useState('');
@@ -68,6 +97,231 @@ const ConversationScreen = ({
   const scrollViewRef =
     useRef<ScrollViewInstance>(null);
 
+  /**
+   * Load the currently authenticated user's
+   * language information.
+   */
+  const loadViewerProfile =
+    useCallback(async (): Promise<{
+      userId: string;
+      profile: ViewerProfile;
+    }> => {
+      const {
+        data: {user},
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!user) {
+        throw new Error(
+          'You must be logged in.',
+        );
+      }
+
+      const {
+        data,
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .select(
+          'native_language, preferred_language',
+        )
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      return {
+        userId: user.id,
+        profile: {
+          nativeLanguage:
+            data?.native_language || null,
+          preferredLanguage:
+            data?.preferred_language || null,
+        },
+      };
+    }, []);
+
+  /**
+   * Determine which language the viewer wants
+   * translations displayed in.
+   */
+  const getTargetLanguage =
+    useCallback((): string | null => {
+      if (!viewerProfile) {
+        return null;
+      }
+
+      return (
+        viewerProfile.preferredLanguage ||
+        viewerProfile.nativeLanguage ||
+        null
+      );
+    }, [viewerProfile]);
+
+  /**
+   * Translate one message for the current viewer.
+   */
+  const translateOneMessage =
+    useCallback(
+      async (
+        message: Message,
+        userProfile: ViewerProfile,
+        userId: string,
+        otherUserData: PublicUser,
+      ) => {
+        const targetLanguage =
+          userProfile.preferredLanguage ||
+          userProfile.nativeLanguage;
+
+        if (!targetLanguage) {
+          return;
+        }
+
+        if (!message.textContent?.trim()) {
+          return;
+        }
+
+        /*
+         * Determine the source language.
+         *
+         * New messages contain source_language.
+         * Older messages may not, so we use the
+         * sender's known language as a fallback.
+         */
+        const sourceLanguage =
+          message.sourceLanguage ||
+          (
+            message.senderId === userId
+              ? userProfile.preferredLanguage ||
+                userProfile.nativeLanguage
+              : otherUserData.nativeLanguage
+          );
+
+        if (!sourceLanguage) {
+          return;
+        }
+
+        const normalizedSource =
+          sourceLanguage.toLowerCase();
+
+        const normalizedTarget =
+          targetLanguage.toLowerCase();
+
+        // No translation required.
+        if (
+          normalizedSource ===
+          normalizedTarget
+        ) {
+          return;
+        }
+
+        setTranslatingMessages(current => ({
+          ...current,
+          [message.id]: true,
+        }));
+
+        try {
+          /*
+           * First check whether we already have
+           * this translation in the database.
+           */
+          const existingTranslation =
+            await getMessageTranslation(
+              message.id,
+              normalizedTarget,
+            );
+
+          if (
+            existingTranslation?.translatedText &&
+            existingTranslation.translationStatus ===
+              'completed'
+          ) {
+            setTranslations(current => ({
+              ...current,
+              [message.id]:
+                existingTranslation.translatedText!,
+            }));
+
+            return;
+          }
+
+          /*
+           * Translation does not exist.
+           * Ask the Edge Function / MyMemory.
+           */
+          const result =
+            await translateMessage(
+              message.textContent,
+              normalizedSource,
+              normalizedTarget,
+            );
+
+          /*
+           * Save translation so we don't need
+           * to translate this message again.
+           */
+          const savedTranslation =
+            await saveMessageTranslation(
+              message.id,
+              normalizedSource,
+              normalizedTarget,
+              result.translatedText,
+            );
+
+          if (savedTranslation.translatedText) {
+            setTranslations(current => ({
+              ...current,
+              [message.id]:
+                savedTranslation.translatedText!,
+            }));
+          }
+        } catch (translationError) {
+          console.error(
+            'Message translation error:',
+            translationError,
+          );
+        } finally {
+          setTranslatingMessages(current => {
+            const next = {...current};
+            delete next[message.id];
+            return next;
+          });
+        }
+      },
+      [],
+    );
+
+  /**
+   * Translate a collection of messages.
+   */
+  const translateMessages =
+    useCallback(
+      async (
+        conversationMessages: Message[],
+        userProfile: ViewerProfile,
+        userId: string,
+        otherUserData: PublicUser,
+      ) => {
+        await Promise.all(
+          conversationMessages.map(message =>
+            translateOneMessage(
+              message,
+              userProfile,
+              userId,
+              otherUserData,
+            ),
+          ),
+        );
+      },
+      [translateOneMessage],
+    );
+
   const loadConversation = useCallback(
     async () => {
       setIsLoading(true);
@@ -77,11 +331,13 @@ const ConversationScreen = ({
         const [
           user,
           conversationMessages,
+          viewer,
         ] = await Promise.all([
           getUserById(otherUserId),
           getConversationMessages(
             conversationId,
           ),
+          loadViewerProfile(),
         ]);
 
         if (!user) {
@@ -91,8 +347,19 @@ const ConversationScreen = ({
         }
 
         setOtherUser(user);
-        setMessages(
+        setMessages(conversationMessages);
+        setCurrentUserId(viewer.userId);
+        setViewerProfile(viewer.profile);
+
+        /*
+         * Translate existing messages after
+         * loading the conversation.
+         */
+        await translateMessages(
           conversationMessages,
+          viewer.profile,
+          viewer.userId,
+          user,
         );
       } catch (conversationError: any) {
         console.error(
@@ -111,6 +378,8 @@ const ConversationScreen = ({
     [
       conversationId,
       otherUserId,
+      loadViewerProfile,
+      translateMessages,
     ],
   );
 
@@ -118,7 +387,9 @@ const ConversationScreen = ({
     loadConversation();
   }, [loadConversation]);
 
-  // Realtime subscription for incoming messages
+  /*
+   * Realtime subscription for incoming messages.
+   */
   useEffect(() => {
     const channel = supabase
       .channel(
@@ -153,6 +424,23 @@ const ConversationScreen = ({
               newMessage,
             ];
           });
+
+          /*
+           * Translate the incoming message
+           * after it arrives through Realtime.
+           */
+          if (
+            viewerProfile &&
+            currentUserId &&
+            otherUser
+          ) {
+            translateOneMessage(
+              newMessage,
+              viewerProfile,
+              currentUserId,
+              otherUser,
+            );
+          }
         },
       )
       .subscribe(status => {
@@ -164,8 +452,17 @@ const ConversationScreen = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId]);
+  }, [
+    conversationId,
+    viewerProfile,
+    currentUserId,
+    otherUser,
+    translateOneMessage,
+  ]);
 
+  /*
+   * Auto-scroll when messages change.
+   */
   useEffect(() => {
     if (!messages.length) {
       return;
@@ -190,10 +487,14 @@ const ConversationScreen = ({
     setError(null);
 
     try {
+      const sourceLanguage =
+        getTargetLanguage();
+
       const newMessage =
         await sendTextMessage(
           conversationId,
           trimmedText,
+          sourceLanguage,
         );
 
       setMessages(currentMessages => [
@@ -202,6 +503,15 @@ const ConversationScreen = ({
       ]);
 
       setText('');
+
+      /*
+       * We don't need to translate our own message
+       * because we're already viewing it in the
+       * language we typed.
+       *
+       * The other user's device will translate it
+       * into their preferred language.
+       */
     } catch (sendError: any) {
       console.error(
         'Send message error:',
@@ -342,8 +652,20 @@ const ConversationScreen = ({
               key={message.id}
               message={message}
               isMine={
-                message.senderId !==
-                otherUserId
+                currentUserId
+                  ? message.senderId ===
+                    currentUserId
+                  : message.senderId !==
+                    otherUserId
+              }
+              translatedText={
+                translations[message.id] ||
+                null
+              }
+              isTranslating={
+                !!translatingMessages[
+                  message.id
+                ]
               }
             />
           ))
@@ -415,11 +737,15 @@ const ConversationScreen = ({
 interface MessageBubbleProps {
   message: Message;
   isMine: boolean;
+  translatedText: string | null;
+  isTranslating: boolean;
 }
 
 const MessageBubble = ({
   message,
   isMine,
+  translatedText,
+  isTranslating,
 }: MessageBubbleProps) => {
   return (
     <View
@@ -438,6 +764,8 @@ const MessageBubble = ({
             : styles.theirMessageBubble,
         ]}>
 
+        {/* ORIGINAL MESSAGE */}
+
         <Text
           style={[
             styles.messageText,
@@ -447,6 +775,65 @@ const MessageBubble = ({
           ]}>
           {message.textContent || ''}
         </Text>
+
+        {/* TRANSLATED MESSAGE */}
+
+        {isTranslating && (
+          <View
+            style={
+              styles.translationLoading
+            }>
+            <ActivityIndicator
+              size="small"
+              color={
+                isMine
+                  ? '#FFFFFF'
+                  : COLORS.accent
+              }
+            />
+
+            <Text
+              style={[
+                styles.translationLoadingText,
+                isMine
+                  ? styles.myMessageText
+                  : styles.theirMessageText,
+              ]}>
+              Translating...
+            </Text>
+          </View>
+        )}
+
+        {translatedText && (
+          <View
+            style={[
+              styles.translationContainer,
+              isMine
+                ? styles.myTranslationContainer
+                : styles.theirTranslationContainer,
+            ]}>
+
+            <Text
+              style={[
+                styles.translationLabel,
+                isMine
+                  ? styles.myMessageText
+                  : styles.theirMessageText,
+              ]}>
+              Translation
+            </Text>
+
+            <Text
+              style={[
+                styles.translationText,
+                isMine
+                  ? styles.myMessageText
+                  : styles.theirMessageText,
+              ]}>
+              {translatedText}
+            </Text>
+          </View>
+        )}
 
         <Text
           style={[
@@ -623,6 +1010,47 @@ const styles = StyleSheet.create({
 
   theirMessageText: {
     color: COLORS.primary,
+  },
+
+  translationContainer: {
+    marginTop: 8,
+    paddingTop: 7,
+    borderTopWidth: 1,
+  },
+
+  myTranslationContainer: {
+    borderTopColor:
+      'rgba(255,255,255,0.25)',
+  },
+
+  theirTranslationContainer: {
+    borderTopColor:
+      COLORS.border,
+  },
+
+  translationLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+    opacity: 0.7,
+  },
+
+  translationText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+
+  translationLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+
+  translationLoadingText: {
+    fontSize: 12,
+    opacity: 0.7,
   },
 
   messageTime: {
