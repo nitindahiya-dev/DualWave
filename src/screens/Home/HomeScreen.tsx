@@ -1,27 +1,70 @@
-import React from 'react';
+import React, {
+  useCallback,
+  useState,
+} from 'react';
+
 import {
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import {
+  useFocusEffect,
+} from '@react-navigation/native';
+
 import Button from '../../components/common/Button';
 import {COLORS} from '../../constants/colors';
+import {
+  getIncomingRequests,
+} from '../../services/communication/contactService';
 import {useAuthStore} from '../../store/authStore';
+import {AppScreenProps} from '../../types/navigation';
 
-const HomeScreen = () => {
-  const logout = useAuthStore(state => state.logout);
+type Props = AppScreenProps<'Home'>;
 
-  const handleLogout = async() => {
+const HomeScreen = ({navigation}: Props) => {
+  const logout = useAuthStore(
+    state => state.logout,
+  );
+
+  const [requestCount, setRequestCount] =
+    useState(0);
+
+  const loadRequestCount = async () => {
+    try {
+      const requests =
+        await getIncomingRequests();
+
+      setRequestCount(requests.length);
+    } catch (error) {
+      console.error(
+        'Contact request count error:',
+        error,
+      );
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRequestCount();
+    }, []),
+  );
+
+  const handleLogout = async () => {
     await logout();
   };
 
   return (
     <View style={styles.container}>
       <View>
-        <Text style={styles.greeting}>Welcome to</Text>
+        <Text style={styles.greeting}>
+          Welcome to
+        </Text>
 
-        <Text style={styles.logo}>DualWave</Text>
+        <Text style={styles.logo}>
+          DualWave
+        </Text>
 
         <Text style={styles.subtitle}>
           Your multilingual communication space.
@@ -36,6 +79,51 @@ const HomeScreen = () => {
         <Text style={styles.cardText}>
           Your communication tools will appear here.
         </Text>
+      </View>
+
+      <View style={styles.navigationContainer}>
+        <Button
+          title="Contact Requests"
+          onPress={() =>
+            navigation.navigate('Contacts')
+          }
+        />
+
+        {requestCount > 0 && (
+          <Text style={styles.requestBadge}>
+            {requestCount}{' '}
+            {requestCount === 1
+              ? 'pending request'
+              : 'pending requests'}
+          </Text>
+        )}
+
+        <View style={styles.buttonSpacing} />
+
+        <Button
+          title="Find People"
+          onPress={() =>
+            navigation.navigate('People')
+          }
+        />
+
+        <View style={styles.buttonSpacing} />
+
+        <Button
+          title="My Contacts"
+          onPress={() =>
+            navigation.navigate('Contacts')
+          }
+        />
+
+        <View style={styles.buttonSpacing} />
+
+        <Button
+          title="My Profile"
+          onPress={() =>
+            navigation.navigate('Profile')
+          }
+        />
       </View>
 
       <View style={styles.logoutContainer}>
@@ -96,8 +184,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
+  navigationContainer: {
+    marginTop: 30,
+  },
+
+  requestBadge: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.accent,
+    marginTop: 8,
+    marginLeft: 4,
+  },
+
+  buttonSpacing: {
+    height: 10,
+  },
+
   logoutContainer: {
-    marginTop: 'auto',
+    marginTop: 30,
     paddingBottom: 20,
   },
 });

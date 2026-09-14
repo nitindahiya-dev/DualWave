@@ -1,4 +1,4 @@
-Here’s the project structure for DualWave, based on the current repository contents and excluding unnecessary/generated items like node_modules:
+Here’s the project structure for DualWave, based on the current repository contents and excluding unnecessary/generated items like node_modules. This file reflects the updated `/src` folder.
 
 DualWave/
 ├── android/
@@ -66,6 +66,10 @@ DualWave/
 │   │   │   └── apiClient.ts
 │   │   ├── auth/
 │   │   │   └── authService.ts
+│   │   ├── communication/
+│   │   │   ├── contactService.ts
+│   │   │   ├── languageService.ts
+│   │   │   └── userService.ts
 │   │   ├── profile/
 │   │   │   ├── profileService.ts
 │   │   │   └── profileStorageService.ts
@@ -80,6 +84,7 @@ DualWave/
 │   │
 │   ├── types/
 │   │   ├── auth.ts
+│   │   ├── communication.ts
 │   │   ├── navigation.ts
 │   │   └── profile.ts
 │   │
@@ -87,7 +92,10 @@ DualWave/
 │   │   ├── helpers.ts
 │   │   └── validation.ts
 │   │
-│   └── assets/ (if added later)
+│   └── assets/
+│       ├── fonts/
+│       ├── icons/
+│       └── images/
 │
 ├── __tests__/
 │   └── App.test.tsx

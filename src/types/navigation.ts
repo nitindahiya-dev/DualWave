@@ -58,6 +58,12 @@ export type ProfileSetupStackParamList = {
  */
 export type AppStackParamList = {
   Home: undefined;
+  People: undefined;
+  UserProfile: {
+    userId: string;
+  };
+  Contacts: undefined;
+  Profile: undefined;
 };
 
 /*

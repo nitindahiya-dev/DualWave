@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import {create} from 'zustand';
 
 import {
   getCurrentSession,
@@ -8,9 +8,10 @@ import {
   verifyEmailOtp,
   resendSignupEmail,
 } from '../services/auth/authService';
-import { getProfile } from '../services/profile/profileService';
 
-import { supabase } from '../services/supabase/supabaseClient';
+import {getProfile} from '../services/profile/profileService';
+
+import {supabase} from '../services/supabase/supabaseClient';
 
 interface User {
   id: string;
@@ -46,8 +47,13 @@ interface AuthState {
     email: string,
   ) => Promise<void>;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<void>;
+
   logout: () => Promise<void>;
+
   clearAuthError: () => void;
 }
 
@@ -77,9 +83,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
-  hasProfile: false,
   isHydrated: false,
   authError: null,
+  hasProfile: false,
 
   initializeAuth: async () => {
     try {
@@ -143,24 +149,42 @@ export const useAuthStore = create<AuthState>((set) => ({
       const needsEmailConfirmation =
         !!data.user && !data.session;
 
-      set({
-        isLoading: false,
-        authError: null,
-      });
+      /*
+       * A newly registered account cannot be assumed
+       * to have a profile.
+       */
+      if (data.session) {
+        const profile = await getProfile();
+
+        set({
+          user: mapSupabaseUser(data.user),
+          isAuthenticated: true,
+          hasProfile: !!profile,
+          isLoading: false,
+          authError: null,
+        });
+      } else {
+        set({
+          isLoading: false,
+          authError: null,
+          hasProfile: false,
+        });
+      }
 
       return {
         needsEmailConfirmation,
       };
     } catch (error: any) {
-      console.error('Registration error:', error);
-
-      const message =
-        error?.message ||
-        'Unable to create your account. Please try again.';
+      console.error(
+        'Registration error:',
+        error,
+      );
 
       set({
         isLoading: false,
-        authError: message,
+        authError:
+          error?.message ||
+          'Unable to create your account. Please try again.',
       });
 
       return {
@@ -185,9 +209,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         data.user,
       );
 
+      /*
+       * IMPORTANT:
+       * After email verification, explicitly check
+       * whether this account already has a profile.
+       */
+      const profile = await getProfile();
+
       set({
         user,
         isAuthenticated: !!data.session,
+        hasProfile: !!profile,
         isLoading: false,
         authError: null,
       });
@@ -206,7 +238,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  resendSignupEmail: async (email) => {
+  resendSignupEmail: async email => {
     set({
       isLoading: true,
       authError: null,
@@ -241,20 +273,33 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
 
     try {
-      const data = await signIn(email, password);
+      const data = await signIn(
+        email,
+        password,
+      );
 
       const user = mapSupabaseUser(
         data.user,
       );
 
+      /*
+       * Never assume that a successfully authenticated
+       * user has completed their profile.
+       */
+      const profile = await getProfile();
+
       set({
         user,
         isAuthenticated: true,
+        hasProfile: !!profile,
         isLoading: false,
         authError: null,
       });
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error(
+        'Login error:',
+        error,
+      );
 
       set({
         isLoading: false,
@@ -277,11 +322,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: null,
         isAuthenticated: false,
+        hasProfile: false,
         isLoading: false,
         authError: null,
       });
     } catch (error: any) {
-      console.error('Logout error:', error);
+      console.error(
+        'Logout error:',
+        error,
+      );
 
       set({
         isLoading: false,
@@ -308,14 +357,25 @@ export const useAuthStore = create<AuthState>((set) => ({
 /**
  * Listen for Supabase authentication changes.
  */
-supabase.auth.onAuthStateChange((_event, session) => {
-  const user = mapSupabaseUser(
-    session?.user || null,
-  );
+supabase.auth.onAuthStateChange(
+  (_event, session) => {
+    /*
+     * Login, OTP verification, and initial session
+     * restoration explicitly determine the complete
+     * auth state.
+     *
+     * We should NOT temporarily set hasProfile=false
+     * here because that causes RootNavigator to show
+     * ProfileSetup for an already completed account.
+     */
 
-  useAuthStore.setState({
-    user,
-    isAuthenticated: !!session,
-    isHydrated: true,
-  });
-});
+    if (!session) {
+      useAuthStore.setState({
+        user: null,
+        isAuthenticated: false,
+        hasProfile: false,
+        isHydrated: true,
+      });
+    }
+  },
+);

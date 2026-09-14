@@ -52,7 +52,7 @@ const OTPScreen = ({ navigation, route }: Props) => {
 
     setOtp(newOtp);
 
-    if (digit && index < 7) {
+    if (digit && index < 5) {
       inputs.current[index + 1]?.focus();
     }
   };
