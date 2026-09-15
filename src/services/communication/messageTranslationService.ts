@@ -11,7 +11,9 @@ export interface MessageTranslation {
   updatedAt: string;
 }
 
-const mapMessageTranslation = (data: any): MessageTranslation => ({
+const mapMessageTranslation = (
+  data: any,
+): MessageTranslation => ({
   id: data.id,
   messageId: data.message_id,
   sourceLanguage: data.source_language,
@@ -23,27 +25,51 @@ const mapMessageTranslation = (data: any): MessageTranslation => ({
 });
 
 /**
- * Get an existing translation for a message and target language.
+ * Get an existing translation for a message,
+ * source language, and target language.
  */
 export const getMessageTranslation = async (
   messageId: string,
+  sourceLanguage: string,
   targetLanguage: string,
 ): Promise<MessageTranslation | null> => {
-  const normalizedTargetLanguage = targetLanguage.trim().toLowerCase();
+  const normalizedSourceLanguage =
+    sourceLanguage.trim().toLowerCase();
+
+  const normalizedTargetLanguage =
+    targetLanguage.trim().toLowerCase();
 
   if (!messageId) {
     throw new Error('Message ID is required.');
+  }
+
+  if (!normalizedSourceLanguage) {
+    throw new Error('Source language is required.');
   }
 
   if (!normalizedTargetLanguage) {
     throw new Error('Target language is required.');
   }
 
+  if (
+    normalizedSourceLanguage ===
+    normalizedTargetLanguage
+  ) {
+    return null;
+  }
+
   const {data, error} = await supabase
     .from('message_translations')
     .select('*')
     .eq('message_id', messageId)
-    .eq('target_language', normalizedTargetLanguage)
+    .eq(
+      'source_language',
+      normalizedSourceLanguage,
+    )
+    .eq(
+      'target_language',
+      normalizedTargetLanguage,
+    )
     .maybeSingle();
 
   if (error) {
@@ -71,9 +97,14 @@ export const saveMessageTranslation = async (
   targetLanguage: string,
   translatedText: string,
 ): Promise<MessageTranslation> => {
-  const normalizedSourceLanguage = sourceLanguage.trim().toLowerCase();
-  const normalizedTargetLanguage = targetLanguage.trim().toLowerCase();
-  const normalizedTranslatedText = translatedText.trim();
+  const normalizedSourceLanguage =
+    sourceLanguage.trim().toLowerCase();
+
+  const normalizedTargetLanguage =
+    targetLanguage.trim().toLowerCase();
+
+  const normalizedTranslatedText =
+    translatedText.trim();
 
   if (!messageId) {
     throw new Error('Message ID is required.');
@@ -88,10 +119,15 @@ export const saveMessageTranslation = async (
   }
 
   if (!normalizedTranslatedText) {
-    throw new Error('Translated text cannot be empty.');
+    throw new Error(
+      'Translated text cannot be empty.',
+    );
   }
 
-  if (normalizedSourceLanguage === normalizedTargetLanguage) {
+  if (
+    normalizedSourceLanguage ===
+    normalizedTargetLanguage
+  ) {
     throw new Error(
       'Source and target languages must be different.',
     );
@@ -102,13 +138,17 @@ export const saveMessageTranslation = async (
     .upsert(
       {
         message_id: messageId,
-        source_language: normalizedSourceLanguage,
-        target_language: normalizedTargetLanguage,
-        translated_text: normalizedTranslatedText,
+        source_language:
+          normalizedSourceLanguage,
+        target_language:
+          normalizedTargetLanguage,
+        translated_text:
+          normalizedTranslatedText,
         translation_status: 'completed',
       },
       {
-        onConflict: 'message_id,target_language',
+        onConflict:
+          'message_id,target_language',
       },
     )
     .select('*')
@@ -129,56 +169,75 @@ export const saveMessageTranslation = async (
 
 /**
  * Mark a translation as pending.
- *
- * Useful later when we introduce background translation
- * and real-time translation status.
  */
-export const createPendingMessageTranslation = async (
-  messageId: string,
-  sourceLanguage: string,
-  targetLanguage: string,
-): Promise<MessageTranslation> => {
-  const normalizedSourceLanguage = sourceLanguage.trim().toLowerCase();
-  const normalizedTargetLanguage = targetLanguage.trim().toLowerCase();
+export const createPendingMessageTranslation =
+  async (
+    messageId: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+  ): Promise<MessageTranslation> => {
+    const normalizedSourceLanguage =
+      sourceLanguage.trim().toLowerCase();
 
-  if (!messageId) {
-    throw new Error('Message ID is required.');
-  }
+    const normalizedTargetLanguage =
+      targetLanguage.trim().toLowerCase();
 
-  if (!normalizedSourceLanguage) {
-    throw new Error('Source language is required.');
-  }
+    if (!messageId) {
+      throw new Error(
+        'Message ID is required.',
+      );
+    }
 
-  if (!normalizedTargetLanguage) {
-    throw new Error('Target language is required.');
-  }
+    if (!normalizedSourceLanguage) {
+      throw new Error(
+        'Source language is required.',
+      );
+    }
 
-  const {data, error} = await supabase
-    .from('message_translations')
-    .upsert(
-      {
-        message_id: messageId,
-        source_language: normalizedSourceLanguage,
-        target_language: normalizedTargetLanguage,
-        translated_text: null,
-        translation_status: 'pending',
-      },
-      {
-        onConflict: 'message_id,target_language',
-      },
-    )
-    .select('*')
-    .single();
+    if (!normalizedTargetLanguage) {
+      throw new Error(
+        'Target language is required.',
+      );
+    }
 
-  if (error) {
-    throw error;
-  }
+    if (
+      normalizedSourceLanguage ===
+      normalizedTargetLanguage
+    ) {
+      throw new Error(
+        'Source and target languages must be different.',
+      );
+    }
 
-  if (!data) {
-    throw new Error(
-      'Failed to create pending translation.',
-    );
-  }
+    const {data, error} = await supabase
+      .from('message_translations')
+      .upsert(
+        {
+          message_id: messageId,
+          source_language:
+            normalizedSourceLanguage,
+          target_language:
+            normalizedTargetLanguage,
+          translated_text: null,
+          translation_status: 'pending',
+        },
+        {
+          onConflict:
+            'message_id,target_language',
+        },
+      )
+      .select('*')
+      .single();
 
-  return mapMessageTranslation(data);
-};
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error(
+        'Failed to create pending translation.',
+      );
+    }
+
+    return mapMessageTranslation(data);
+  };

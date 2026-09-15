@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +20,9 @@ import {
   View,
 } from 'react-native';
 
-import {COLORS} from '../../constants/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { COLORS } from '../../constants/colors';
 
 import {
   PublicUser,
@@ -30,6 +33,7 @@ import {
   Message,
   getConversationMessages,
   sendTextMessage,
+  mapMessage
 } from '../../services/communication/messageService';
 
 import {
@@ -39,11 +43,12 @@ import {
 
 import {
   translateMessage,
+  detectMessageLanguage
 } from '../../services/communication/translationService';
 
-import {supabase} from '../../services/supabase/supabaseClient';
+import { supabase } from '../../services/supabase/supabaseClient';
 
-import {AppScreenProps} from '../../types/navigation';
+import { AppScreenProps } from '../../types/navigation';
 
 type Props = AppScreenProps<'Conversation'>;
 
@@ -55,6 +60,11 @@ interface ViewerProfile {
 interface TranslationMap {
   [messageId: string]: string;
 }
+
+const getClearChatStorageKey = (
+  conversationId: string,
+): string =>
+  `@dualwave_clear_chat_${conversationId}`;
 
 const ConversationScreen = ({
   route,
@@ -94,6 +104,12 @@ const ConversationScreen = ({
   const [error, setError] =
     useState<string | null>(null);
 
+  const [isMenuVisible, setIsMenuVisible] =
+    useState(false);
+
+  const [clearChatAt, setClearChatAt] =
+    useState<string | null>(null);
+
   const scrollViewRef =
     useRef<ScrollViewInstance>(null);
 
@@ -107,7 +123,7 @@ const ConversationScreen = ({
       profile: ViewerProfile;
     }> => {
       const {
-        data: {user},
+        data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
@@ -199,7 +215,7 @@ const ConversationScreen = ({
           (
             message.senderId === userId
               ? userProfile.preferredLanguage ||
-                userProfile.nativeLanguage
+              userProfile.nativeLanguage
               : otherUserData.nativeLanguage
           );
 
@@ -234,13 +250,14 @@ const ConversationScreen = ({
           const existingTranslation =
             await getMessageTranslation(
               message.id,
+              normalizedSource,
               normalizedTarget,
             );
 
           if (
             existingTranslation?.translatedText &&
             existingTranslation.translationStatus ===
-              'completed'
+            'completed'
           ) {
             setTranslations(current => ({
               ...current,
@@ -288,7 +305,7 @@ const ConversationScreen = ({
           );
         } finally {
           setTranslatingMessages(current => {
-            const next = {...current};
+            const next = { ...current };
             delete next[message.id];
             return next;
           });
@@ -340,6 +357,15 @@ const ConversationScreen = ({
           loadViewerProfile(),
         ]);
 
+        const visibleMessages =
+          clearChatAt
+            ? conversationMessages.filter(
+              message =>
+                new Date(message.createdAt) >
+                new Date(clearChatAt),
+            )
+            : conversationMessages;
+
         if (!user) {
           throw new Error(
             'Unable to find this user.',
@@ -347,7 +373,7 @@ const ConversationScreen = ({
         }
 
         setOtherUser(user);
-        setMessages(conversationMessages);
+        setMessages(visibleMessages);
         setCurrentUserId(viewer.userId);
         setViewerProfile(viewer.profile);
 
@@ -356,7 +382,7 @@ const ConversationScreen = ({
          * loading the conversation.
          */
         await translateMessages(
-          conversationMessages,
+          visibleMessages,
           viewer.profile,
           viewer.userId,
           user,
@@ -369,7 +395,7 @@ const ConversationScreen = ({
 
         setError(
           conversationError?.message ||
-            'Unable to load conversation.',
+          'Unable to load conversation.',
         );
       } finally {
         setIsLoading(false);
@@ -380,12 +406,42 @@ const ConversationScreen = ({
       otherUserId,
       loadViewerProfile,
       translateMessages,
+      clearChatAt,
     ],
   );
 
   useEffect(() => {
     loadConversation();
   }, [loadConversation]);
+
+  useEffect(() => {
+    const loadClearChatState = async () => {
+      try {
+        const storageKey =
+          getClearChatStorageKey(
+            conversationId,
+          );
+
+        const storedClearChatAt =
+          await AsyncStorage.getItem(
+            storageKey,
+          );
+
+        if (storedClearChatAt) {
+          setClearChatAt(
+            storedClearChatAt,
+          );
+        }
+      } catch (storageError) {
+        console.error(
+          'Unable to load clear chat state:',
+          storageError,
+        );
+      }
+    };
+
+    loadClearChatState();
+  }, [conversationId]);
 
   /*
    * Realtime subscription for incoming messages.
@@ -405,7 +461,7 @@ const ConversationScreen = ({
         },
         payload => {
           const newMessage =
-            payload.new as Message;
+            mapMessage(payload.new);
 
           setMessages(currentMessages => {
             const alreadyExists =
@@ -475,57 +531,143 @@ const ConversationScreen = ({
     }, 50);
   }, [messages.length]);
 
-  const handleSend = async () => {
-    const trimmedText =
-      text.trim();
+const handleSend = async () => {
+  const trimmedText =
+    text.trim();
 
-    if (!trimmedText || isSending) {
-      return;
+  if (!trimmedText || isSending) {
+    return;
+  }
+
+  setIsSending(true);
+  setError(null);
+
+  try {
+    /*
+     * The language used for translation display
+     * is the viewer's preferred/native language.
+     *
+     * This is NOT necessarily the language
+     * the user typed.
+     */
+    const targetLanguage =
+      getTargetLanguage();
+
+    if (!targetLanguage) {
+      throw new Error(
+        'Please select your preferred language before sending messages.',
+      );
     }
 
-    setIsSending(true);
-    setError(null);
+    /*
+     * Detect the ACTUAL language of the
+     * message being typed.
+     *
+     * We must not use the user's profile
+     * language here because they may type
+     * in another language.
+     */
+    const detection =
+      await detectMessageLanguage(
+        trimmedText,
+        targetLanguage,
+      );
 
-    try {
-      const sourceLanguage =
-        getTargetLanguage();
+    const sourceLanguage =
+      detection.detectedLanguage;
 
-      const newMessage =
-        await sendTextMessage(
-          conversationId,
-          trimmedText,
-          sourceLanguage,
+    /*
+     * Save the detected language with
+     * the message.
+     */
+    const newMessage =
+      await sendTextMessage(
+        conversationId,
+        trimmedText,
+        sourceLanguage,
+      );
+
+    setMessages(currentMessages => {
+      const alreadyExists =
+        currentMessages.some(
+          message =>
+            message.id ===
+            newMessage.id,
         );
 
-      setMessages(currentMessages => [
+      if (alreadyExists) {
+        return currentMessages;
+      }
+
+      return [
         ...currentMessages,
         newMessage,
-      ]);
+      ];
+    });
 
-      setText('');
+    setText('');
 
-      /*
-       * We don't need to translate our own message
-       * because we're already viewing it in the
-       * language we typed.
-       *
-       * The other user's device will translate it
-       * into their preferred language.
-       */
-    } catch (sendError: any) {
+    /*
+     * We do not translate our own message
+     * here.
+     *
+     * The receiver's device will detect/read
+     * source_language and translate it into
+     * their preferred language.
+     */
+  } catch (sendError: any) {
+    console.error(
+      'Send message error:',
+      sendError,
+    );
+
+    setError(
+      sendError?.message ||
+      'Unable to send message.',
+    );
+  } finally {
+    setIsSending(false);
+  }
+};
+
+
+  const handleClearChat = async () => {
+    try {
+      const clearTimestamp =
+        new Date().toISOString();
+
+      const storageKey =
+        getClearChatStorageKey(
+          conversationId,
+        );
+
+      await AsyncStorage.setItem(
+        storageKey,
+        clearTimestamp,
+      );
+
+      setClearChatAt(
+        clearTimestamp,
+      );
+
+      setMessages([]);
+      setTranslations({});
+      setTranslatingMessages({});
+      setIsMenuVisible(false);
+      setError(null);
+    } catch (clearError: any) {
       console.error(
-        'Send message error:',
-        sendError,
+        'Clear chat error:',
+        clearError,
       );
 
       setError(
-        sendError?.message ||
-          'Unable to send message.',
+        clearError?.message ||
+        'Unable to clear chat.',
       );
-    } finally {
-      setIsSending(false);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -569,29 +711,7 @@ const ConversationScreen = ({
       {/* CHAT HEADER */}
 
       <View style={styles.header}>
-        {otherUser?.profilePhotoUrl ? (
-          <Image
-            source={{
-              uri:
-                otherUser.profilePhotoUrl,
-            }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View
-            style={
-              styles.avatarPlaceholder
-            }>
-            <Text
-              style={
-                styles.avatarText
-              }>
-              {otherUser?.displayName
-                ?.charAt(0)
-                .toUpperCase() || '?'}
-            </Text>
-          </View>
-        )}
+        {/* avatar */}
 
         <View style={styles.headerText}>
           <Text style={styles.name}>
@@ -605,9 +725,102 @@ const ConversationScreen = ({
             </Text>
           )}
         </View>
+
+        <Pressable
+          style={styles.menuButton}
+          onPress={() =>
+            setIsMenuVisible(true)
+          }>
+          <Text style={styles.menuButtonText}>
+            ⋮
+          </Text>
+        </Pressable>
       </View>
 
       {/* ERROR */}
+
+      <Modal
+        visible={isMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setIsMenuVisible(false)
+        }>
+        <Pressable
+          style={styles.menuOverlay}
+          onPress={() =>
+            setIsMenuVisible(false)
+          }>
+
+          <Pressable
+            style={styles.menuContainer}
+            onPress={event =>
+              event.stopPropagation()
+            }>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+
+                // Mute will be implemented later.
+              }}>
+              <Text style={styles.menuIcon}>
+                🔕
+              </Text>
+
+              <Text style={styles.menuItemText}>
+                Mute
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+
+                // Search will be implemented later.
+              }}>
+              <Text style={styles.menuIcon}>
+                🔍
+              </Text>
+
+              <Text style={styles.menuItemText}>
+                Search
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={handleClearChat}>
+              <Text style={styles.menuIcon}>
+                🗑
+              </Text>
+
+              <Text style={styles.menuItemText}>
+                Clear chat
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+
+                // Block will be implemented later.
+              }}>
+              <Text style={styles.menuIcon}>
+                🚫
+              </Text>
+
+              <Text style={styles.menuItemText}>
+                Block
+              </Text>
+            </Pressable>
+
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {error && (
         <Text style={styles.error}>
@@ -654,9 +867,9 @@ const ConversationScreen = ({
               isMine={
                 currentUserId
                   ? message.senderId ===
-                    currentUserId
+                  currentUserId
                   : message.senderId !==
-                    otherUserId
+                  otherUserId
               }
               translatedText={
                 translations[message.id] ||
@@ -664,7 +877,7 @@ const ConversationScreen = ({
               }
               isTranslating={
                 !!translatingMessages[
-                  message.id
+                message.id
                 ]
               }
             />
@@ -707,7 +920,7 @@ const ConversationScreen = ({
             styles.sendButton,
             (!text.trim() ||
               isSending) &&
-              styles.sendButtonDisabled,
+            styles.sendButtonDisabled,
           ]}
           onPress={handleSend}
           disabled={
@@ -1139,6 +1352,66 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+
+  menuButton: {
+    width: 42,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  menuButtonText: {
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
+  menuOverlay: {
+    flex: 1,
+    backgroundColor:
+      'rgba(0,0,0,0.15)',
+  },
+
+  menuContainer: {
+    position: 'absolute',
+    top: 62,
+    right: 14,
+    width: 190,
+    backgroundColor:
+      COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor:
+      COLORS.border,
+    paddingVertical: 6,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+  },
+
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+
+  menuIcon: {
+    width: 30,
+    fontSize: 18,
+  },
+
+  menuItemText: {
+    fontSize: 15,
+    color: COLORS.primary,
+    fontWeight: '500',
   },
 });
 

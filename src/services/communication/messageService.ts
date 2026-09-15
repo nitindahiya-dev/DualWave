@@ -17,7 +17,7 @@ export interface Message {
   updatedAt: string;
 }
 
-const mapMessage = (
+export const mapMessage = (
   data: any,
 ): Message => {
   return {

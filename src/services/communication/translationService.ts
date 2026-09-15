@@ -1,19 +1,108 @@
-import {supabase} from '../supabase/supabaseClient';
+import { supabase } from '../supabase/supabaseClient';
 
 export interface TranslationResult {
   translatedText: string;
   sourceLanguage: string;
   targetLanguage: string;
+  detectedLanguage?: string | null;
+}
+
+export interface LanguageDetectionResult {
+  detectedLanguage: string;
 }
 
 /**
- * Translate text from one language to another.
+ * Normalize provider language codes
+ * into DualWave database language codes.
  *
- * The actual AI/provider call will happen through
- * a secure backend function later.
+ * Example:
+ * zh-CN -> zh
+ * zh-TW -> zh
+ * hi-IN -> hi
+ */
+const normalizeLanguageCode = (languageCode: string): string => {
+  const normalized = languageCode.trim().toLowerCase();
+
+  if (normalized.startsWith('zh')) {
+    return 'zh';
+  }
+
+  if (normalized.startsWith('hi')) {
+    return 'hi';
+  }
+
+  return normalized.split('-')[0];
+};
+
+/**
+ * Detect the actual language of text.
  *
- * API keys must NOT be stored inside the
- * React Native application.
+ * The backend uses MyMemory's
+ * autodetect capability.
+ */
+export const detectMessageLanguage = async (
+  text: string,
+  targetLanguage: string,
+): Promise<LanguageDetectionResult> => {
+  const trimmedText = text.trim();
+
+  if (!trimmedText) {
+    throw new Error('Text cannot be empty.');
+  }
+
+  if (!targetLanguage) {
+    throw new Error('Target language is required for language detection.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('translate-message', {
+    body: {
+      text: trimmedText,
+      sourceLanguage: 'autodetect',
+      targetLanguage,
+      detectOnly: true,
+    },
+  });
+
+  if (error) {
+    console.error('Language detection Edge Function error:', error);
+
+    const context = (error as any)?.context;
+
+    if (context) {
+      try {
+        const responseText = await context.text();
+
+        console.error(
+          'Language detection Edge Function response:',
+          responseText,
+        );
+      } catch (responseReadError) {
+        console.error(
+          'Unable to read Edge Function error response:',
+          responseReadError,
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  if (
+    !data ||
+    typeof data.detectedLanguage !== 'string' ||
+    !data.detectedLanguage.trim()
+  ) {
+    throw new Error('Unable to detect message language.');
+  }
+
+  return {
+    detectedLanguage: normalizeLanguageCode(data.detectedLanguage),
+  };
+};
+
+/**
+ * Translate text from one language
+ * to another.
  */
 export const translateMessage = async (
   text: string,
@@ -23,67 +112,54 @@ export const translateMessage = async (
   const trimmedText = text.trim();
 
   if (!trimmedText) {
-    throw new Error(
-      'Text cannot be empty.',
-    );
+    throw new Error('Text cannot be empty.');
   }
 
   if (!sourceLanguage) {
-    throw new Error(
-      'Source language is required.',
-    );
+    throw new Error('Source language is required.');
   }
 
   if (!targetLanguage) {
-    throw new Error(
-      'Target language is required.',
-    );
+    throw new Error('Target language is required.');
   }
 
-  if (
-    sourceLanguage === targetLanguage
-  ) {
+  const normalizedSource = normalizeLanguageCode(sourceLanguage);
+
+  const normalizedTarget = normalizeLanguageCode(targetLanguage);
+
+  if (normalizedSource === normalizedTarget) {
     return {
       translatedText: trimmedText,
-      sourceLanguage,
-      targetLanguage,
+      sourceLanguage: normalizedSource,
+      targetLanguage: normalizedTarget,
     };
   }
 
-  const {data, error} =
-    await supabase.functions.invoke(
-      'translate-message',
-      {
-        body: {
-          text: trimmedText,
-          sourceLanguage,
-          targetLanguage,
-        },
-      },
-    );
+  const { data, error } = await supabase.functions.invoke('translate-message', {
+    body: {
+      text: trimmedText,
+      sourceLanguage: normalizedSource,
+      targetLanguage: normalizedTarget,
+    },
+  });
 
   if (error) {
     throw error;
   }
 
-  if (
-    !data ||
-    typeof data.translatedText !==
-      'string'
-  ) {
-    throw new Error(
-      'Invalid translation response.',
-    );
+  if (!data || typeof data.translatedText !== 'string') {
+    throw new Error('Invalid translation response.');
   }
 
   return {
-    translatedText:
-      data.translatedText,
-    sourceLanguage:
-      data.sourceLanguage ||
-      sourceLanguage,
-    targetLanguage:
-      data.targetLanguage ||
-      targetLanguage,
+    translatedText: data.translatedText,
+
+    sourceLanguage: data.sourceLanguage || normalizedSource,
+
+    targetLanguage: data.targetLanguage || normalizedTarget,
+
+    detectedLanguage: data.detectedLanguage
+      ? normalizeLanguageCode(data.detectedLanguage)
+      : null,
   };
 };
