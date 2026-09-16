@@ -4,7 +4,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-
+import {useFocusEffect} from '@react-navigation/native';
 import {
   ActivityIndicator,
   Image,
@@ -40,6 +40,9 @@ import {
   getMessageTranslation,
   saveMessageTranslation,
 } from '../../services/communication/messageTranslationService';
+import {
+  markConversationAsRead,
+} from '../../services/communication/conversationService';
 
 import {
   translateMessage,
@@ -413,6 +416,38 @@ const ConversationScreen = ({
   useEffect(() => {
     loadConversation();
   }, [loadConversation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const markAsRead = async () => {
+        try {
+          await markConversationAsRead(
+            conversationId,
+          );
+
+          if (isActive) {
+            console.log(
+              'Conversation marked as read:',
+              conversationId,
+            );
+          }
+        } catch (readError) {
+          console.error(
+            'Unable to mark conversation as read:',
+            readError,
+          );
+        }
+      };
+
+      markAsRead();
+
+      return () => {
+        isActive = false;
+      };
+    }, [conversationId]),
+  );
 
   useEffect(() => {
     const loadClearChatState = async () => {

@@ -60,6 +60,8 @@ export type AppStackParamList = {
   Home: undefined;
   People: undefined;
 
+  Conversations: undefined;
+
   UserProfile: {
     userId: string;
   };
@@ -115,3 +117,4 @@ export type AppScreenProps<
 export type RootScreenProps<
   T extends keyof RootStackParamList,
 > = NativeStackScreenProps<RootStackParamList, T>;
+

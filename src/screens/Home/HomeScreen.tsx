@@ -14,16 +14,16 @@ import {
 } from '@react-navigation/native';
 
 import Button from '../../components/common/Button';
-import {COLORS} from '../../constants/colors';
+import { COLORS } from '../../constants/colors';
 import {
   getIncomingRequests,
 } from '../../services/communication/contactService';
-import {useAuthStore} from '../../store/authStore';
-import {AppScreenProps} from '../../types/navigation';
+import { useAuthStore } from '../../store/authStore';
+import { AppScreenProps } from '../../types/navigation';
 
 type Props = AppScreenProps<'Home'>;
 
-const HomeScreen = ({navigation}: Props) => {
+const HomeScreen = ({ navigation }: Props) => {
   const logout = useAuthStore(
     state => state.logout,
   );
@@ -97,6 +97,15 @@ const HomeScreen = ({navigation}: Props) => {
               : 'pending requests'}
           </Text>
         )}
+
+        <View style={styles.buttonSpacing} />
+
+        <Button
+          title="Conversations"
+          onPress={() =>
+            navigation.navigate('Conversations')
+          }
+        />
 
         <View style={styles.buttonSpacing} />
 

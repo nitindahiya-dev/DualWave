@@ -40,7 +40,6 @@ DualWave/
 │   │   ├── AuthNavigator.tsx
 │   │   ├── ProfileSetupNavigator.tsx
 │   │   └── RootNavigator.tsx
-│   │
 │   ├── screens/
 │   │   ├── Auth/
 │   │   │   ├── ForgotPasswordScreen.tsx
@@ -48,14 +47,24 @@ DualWave/
 │   │   │   ├── OTPScreen.tsx
 │   │   │   ├── RegisterScreen.tsx
 │   │   │   └── ResetPasswordScreen.tsx
+│   │   ├── Contacts/
+│   │   │   └── ContactsScreen.tsx
+│   │   ├── Conversation/
+│   │   │   └── ConversationScreen.tsx
+│   │   ├── Conversations/
+│   │   │   └── ConversationsScreen.tsx
 │   │   ├── Home/
 │   │   │   └── HomeScreen.tsx
+│   │   ├── People/
+│   │   │   ├── PeopleScreen.tsx
+│   │   │   └── UserProfileScreen.tsx
 │   │   ├── Profile/
 │   │   │   ├── CountryScreen.tsx
 │   │   │   ├── CreateProfileScreen.tsx
 │   │   │   ├── LanguageScreen.tsx
 │   │   │   ├── ProfileCompleteScreen.tsx
-│   │   │   └── ProfilePhotoScreen.tsx
+│   │   │   ├── ProfilePhotoScreen.tsx
+│   │   │   └── ProfileScreen.tsx
 │   │   ├── Splash/
 │   │   │   └── SplashScreen.tsx
 │   │   └── Welcome/
