@@ -110,6 +110,15 @@ const HomeScreen = ({ navigation }: Props) => {
         <View style={styles.buttonSpacing} />
 
         <Button
+          title="🎙️ Test Audio Recording"
+          onPress={() =>
+            navigation.navigate('AudioTest')
+          }
+        />
+
+        <View style={styles.buttonSpacing} />
+
+        <Button
           title="Find People"
           onPress={() =>
             navigation.navigate('People')

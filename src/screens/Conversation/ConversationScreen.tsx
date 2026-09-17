@@ -49,6 +49,16 @@ import {
   detectMessageLanguage
 } from '../../services/communication/translationService';
 
+import {
+  startRecording,
+  stopRecording,
+} from '../../services/communication/audioService';
+
+import {
+  uploadVoiceMessage,
+  createVoiceMessage,
+} from '../../services/communication/voiceService';
+
 import { supabase } from '../../services/supabase/supabaseClient';
 
 import { AppScreenProps } from '../../types/navigation';
@@ -102,6 +112,12 @@ const ConversationScreen = ({
     useState(true);
 
   const [isSending, setIsSending] =
+    useState(false);
+
+  const [isRecording, setIsRecording] =
+    useState(false);
+
+  const [isSendingVoice, setIsSendingVoice] =
     useState(false);
 
   const [error, setError] =
@@ -566,105 +582,195 @@ const ConversationScreen = ({
     }, 50);
   }, [messages.length]);
 
-const handleSend = async () => {
-  const trimmedText =
-    text.trim();
+  const handleSend = async () => {
+    const trimmedText =
+      text.trim();
 
-  if (!trimmedText || isSending) {
-    return;
-  }
-
-  setIsSending(true);
-  setError(null);
-
-  try {
-    /*
-     * The language used for translation display
-     * is the viewer's preferred/native language.
-     *
-     * This is NOT necessarily the language
-     * the user typed.
-     */
-    const targetLanguage =
-      getTargetLanguage();
-
-    if (!targetLanguage) {
-      throw new Error(
-        'Please select your preferred language before sending messages.',
-      );
+    if (!trimmedText || isSending) {
+      return;
     }
 
-    /*
-     * Detect the ACTUAL language of the
-     * message being typed.
-     *
-     * We must not use the user's profile
-     * language here because they may type
-     * in another language.
-     */
-    const detection =
-      await detectMessageLanguage(
-        trimmedText,
-        targetLanguage,
-      );
+    setIsSending(true);
+    setError(null);
 
-    const sourceLanguage =
-      detection.detectedLanguage;
+    try {
+      /*
+       * The language used for translation display
+       * is the viewer's preferred/native language.
+       *
+       * This is NOT necessarily the language
+       * the user typed.
+       */
+      const targetLanguage =
+        getTargetLanguage();
 
-    /*
-     * Save the detected language with
-     * the message.
-     */
-    const newMessage =
-      await sendTextMessage(
-        conversationId,
-        trimmedText,
-        sourceLanguage,
-      );
-
-    setMessages(currentMessages => {
-      const alreadyExists =
-        currentMessages.some(
-          message =>
-            message.id ===
-            newMessage.id,
+      if (!targetLanguage) {
+        throw new Error(
+          'Please select your preferred language before sending messages.',
         );
-
-      if (alreadyExists) {
-        return currentMessages;
       }
 
-      return [
-        ...currentMessages,
-        newMessage,
-      ];
-    });
+      /*
+       * Detect the ACTUAL language of the
+       * message being typed.
+       *
+       * We must not use the user's profile
+       * language here because they may type
+       * in another language.
+       */
+      const detection =
+        await detectMessageLanguage(
+          trimmedText,
+          targetLanguage,
+        );
 
-    setText('');
+      const sourceLanguage =
+        detection.detectedLanguage;
 
-    /*
-     * We do not translate our own message
-     * here.
-     *
-     * The receiver's device will detect/read
-     * source_language and translate it into
-     * their preferred language.
-     */
-  } catch (sendError: any) {
-    console.error(
-      'Send message error:',
-      sendError,
-    );
+      /*
+       * Save the detected language with
+       * the message.
+       */
+      const newMessage =
+        await sendTextMessage(
+          conversationId,
+          trimmedText,
+          sourceLanguage,
+        );
 
-    setError(
-      sendError?.message ||
-      'Unable to send message.',
-    );
-  } finally {
-    setIsSending(false);
-  }
-};
+      setMessages(currentMessages => {
+        const alreadyExists =
+          currentMessages.some(
+            message =>
+              message.id ===
+              newMessage.id,
+          );
 
+        if (alreadyExists) {
+          return currentMessages;
+        }
+
+        return [
+          ...currentMessages,
+          newMessage,
+        ];
+      });
+
+      setText('');
+
+      /*
+       * We do not translate our own message
+       * here.
+       *
+       * The receiver's device will detect/read
+       * source_language and translate it into
+       * their preferred language.
+       */
+    } catch (sendError: any) {
+      console.error(
+        'Send message error:',
+        sendError,
+      );
+
+      setError(
+        sendError?.message ||
+        'Unable to send message.',
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleVoiceMessage = async () => {
+    if (isSendingVoice) {
+      return;
+    }
+
+    if (isRecording) {
+      try {
+        const result =
+          await stopRecording();
+
+        setIsRecording(false);
+        setIsSendingVoice(true);
+        setError(null);
+
+        console.log(
+          'Voice recording stopped:',
+          result.audioPath,
+        );
+
+        console.log(
+          'Voice duration:',
+          result.durationMs,
+          'ms',
+        );
+
+        const storagePath =
+          await uploadVoiceMessage(
+            result.audioPath,
+            conversationId,
+          );
+
+        console.log(
+          'Voice uploaded:',
+          storagePath,
+        );
+
+        const messageId =
+          await createVoiceMessage(
+            conversationId,
+            storagePath,
+            result.durationMs,
+          );
+
+        console.log(
+          'Voice message created:',
+          messageId,
+        );
+      } catch (voiceError: any) {
+        console.error(
+          'Voice message error:',
+          voiceError,
+        );
+
+        setError(
+          voiceError?.message ||
+          'Unable to send voice message.',
+        );
+
+        setIsRecording(false);
+      } finally {
+        setIsSendingVoice(false);
+      }
+
+      return;
+    }
+
+    try {
+      setError(null);
+
+      await startRecording();
+
+      setIsRecording(true);
+
+      console.log(
+        'Voice recording started.',
+      );
+    } catch (voiceError: any) {
+      console.error(
+        'Voice recording error:',
+        voiceError,
+      );
+
+      setIsRecording(false);
+
+      setError(
+        voiceError?.message ||
+        'Unable to start voice recording.',
+      );
+    }
+  };
 
   const handleClearChat = async () => {
     try {

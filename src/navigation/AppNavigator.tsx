@@ -13,6 +13,7 @@ import ContactsScreen from '../screens/Contacts/ContactsScreen';
 import UserProfileScreen from '../screens/People/UserProfileScreen';
 import ConversationScreen from '../screens/Conversation/ConversationScreen';
 import ConversationsScreen from '../screens/Conversations/ConversationsScreen';
+import AudioTestScreen from '../screens/AudioTest/AudioTestScreen';
 
 const Stack =
   createNativeStackNavigator<AppStackParamList>();
@@ -79,6 +80,14 @@ const AppNavigator = () => {
         component={ConversationsScreen}
         options={{
           title: 'Conversations',
+        }}
+      />
+
+      <Stack.Screen
+        name="AudioTest"
+        component={AudioTestScreen}
+        options={{
+          title: 'Audio Test',
         }}
       />
 

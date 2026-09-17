@@ -1,4 +1,4 @@
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 /*
  * Authentication screens
@@ -61,7 +61,7 @@ export type AppStackParamList = {
   People: undefined;
 
   Conversations: undefined;
-
+  AudioTest: undefined;
   UserProfile: {
     userId: string;
   };
@@ -90,31 +90,24 @@ export type RootStackParamList = {
 /*
  * Authentication screen props
  */
-export type AuthScreenProps<
-  T extends keyof AuthStackParamList,
-> = NativeStackScreenProps<AuthStackParamList, T>;
+export type AuthScreenProps<T extends keyof AuthStackParamList> =
+  NativeStackScreenProps<AuthStackParamList, T>;
 
 /*
  * Profile setup screen props
  */
 export type ProfileSetupScreenProps<
   T extends keyof ProfileSetupStackParamList,
-> = NativeStackScreenProps<
-  ProfileSetupStackParamList,
-  T
->;
+> = NativeStackScreenProps<ProfileSetupStackParamList, T>;
 
 /*
  * Main application screen props
  */
-export type AppScreenProps<
-  T extends keyof AppStackParamList,
-> = NativeStackScreenProps<AppStackParamList, T>;
+export type AppScreenProps<T extends keyof AppStackParamList> =
+  NativeStackScreenProps<AppStackParamList, T>;
 
 /*
  * Root screen props
  */
-export type RootScreenProps<
-  T extends keyof RootStackParamList,
-> = NativeStackScreenProps<RootStackParamList, T>;
-
+export type RootScreenProps<T extends keyof RootStackParamList> =
+  NativeStackScreenProps<RootStackParamList, T>;
