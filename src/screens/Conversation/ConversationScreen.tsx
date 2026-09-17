@@ -4,7 +4,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {useFocusEffect} from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Image,
@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Sound from 'react-native-nitro-sound';
 
 import { COLORS } from '../../constants/colors';
 
@@ -57,6 +58,7 @@ import {
 import {
   uploadVoiceMessage,
   createVoiceMessage,
+  getVoiceMessageUrl,
 } from '../../services/communication/voiceService';
 
 import { supabase } from '../../services/supabase/supabaseClient';
@@ -222,13 +224,6 @@ const ConversationScreen = ({
           return;
         }
 
-        /*
-         * Determine the source language.
-         *
-         * New messages contain source_language.
-         * Older messages may not, so we use the
-         * sender's known language as a fallback.
-         */
         const sourceLanguage =
           message.sourceLanguage ||
           (
@@ -248,7 +243,6 @@ const ConversationScreen = ({
         const normalizedTarget =
           targetLanguage.toLowerCase();
 
-        // No translation required.
         if (
           normalizedSource ===
           normalizedTarget
@@ -262,10 +256,6 @@ const ConversationScreen = ({
         }));
 
         try {
-          /*
-           * First check whether we already have
-           * this translation in the database.
-           */
           const existingTranslation =
             await getMessageTranslation(
               message.id,
@@ -287,10 +277,6 @@ const ConversationScreen = ({
             return;
           }
 
-          /*
-           * Translation does not exist.
-           * Ask the Edge Function / MyMemory.
-           */
           const result =
             await translateMessage(
               message.textContent,
@@ -298,10 +284,6 @@ const ConversationScreen = ({
               normalizedTarget,
             );
 
-          /*
-           * Save translation so we don't need
-           * to translate this message again.
-           */
           const savedTranslation =
             await saveMessageTranslation(
               message.id,
@@ -396,10 +378,6 @@ const ConversationScreen = ({
         setCurrentUserId(viewer.userId);
         setViewerProfile(viewer.profile);
 
-        /*
-         * Translate existing messages after
-         * loading the conversation.
-         */
         await translateMessages(
           visibleMessages,
           viewer.profile,
@@ -494,9 +472,6 @@ const ConversationScreen = ({
     loadClearChatState();
   }, [conversationId]);
 
-  /*
-   * Realtime subscription for incoming messages.
-   */
   useEffect(() => {
     const channel = supabase
       .channel(
@@ -532,10 +507,6 @@ const ConversationScreen = ({
             ];
           });
 
-          /*
-           * Translate the incoming message
-           * after it arrives through Realtime.
-           */
           if (
             viewerProfile &&
             currentUserId &&
@@ -567,9 +538,6 @@ const ConversationScreen = ({
     translateOneMessage,
   ]);
 
-  /*
-   * Auto-scroll when messages change.
-   */
   useEffect(() => {
     if (!messages.length) {
       return;
@@ -594,13 +562,6 @@ const ConversationScreen = ({
     setError(null);
 
     try {
-      /*
-       * The language used for translation display
-       * is the viewer's preferred/native language.
-       *
-       * This is NOT necessarily the language
-       * the user typed.
-       */
       const targetLanguage =
         getTargetLanguage();
 
@@ -610,14 +571,6 @@ const ConversationScreen = ({
         );
       }
 
-      /*
-       * Detect the ACTUAL language of the
-       * message being typed.
-       *
-       * We must not use the user's profile
-       * language here because they may type
-       * in another language.
-       */
       const detection =
         await detectMessageLanguage(
           trimmedText,
@@ -627,10 +580,6 @@ const ConversationScreen = ({
       const sourceLanguage =
         detection.detectedLanguage;
 
-      /*
-       * Save the detected language with
-       * the message.
-       */
       const newMessage =
         await sendTextMessage(
           conversationId,
@@ -657,15 +606,6 @@ const ConversationScreen = ({
       });
 
       setText('');
-
-      /*
-       * We do not translate our own message
-       * here.
-       *
-       * The receiver's device will detect/read
-       * source_language and translate it into
-       * their preferred language.
-       */
     } catch (sendError: any) {
       console.error(
         'Send message error:',
@@ -695,27 +635,11 @@ const ConversationScreen = ({
         setIsSendingVoice(true);
         setError(null);
 
-        console.log(
-          'Voice recording stopped:',
-          result.audioPath,
-        );
-
-        console.log(
-          'Voice duration:',
-          result.durationMs,
-          'ms',
-        );
-
         const storagePath =
           await uploadVoiceMessage(
             result.audioPath,
             conversationId,
           );
-
-        console.log(
-          'Voice uploaded:',
-          storagePath,
-        );
 
         const messageId =
           await createVoiceMessage(
@@ -723,11 +647,6 @@ const ConversationScreen = ({
             storagePath,
             result.durationMs,
           );
-
-        console.log(
-          'Voice message created:',
-          messageId,
-        );
       } catch (voiceError: any) {
         console.error(
           'Voice message error:',
@@ -753,10 +672,6 @@ const ConversationScreen = ({
       await startRecording();
 
       setIsRecording(true);
-
-      console.log(
-        'Voice recording started.',
-      );
     } catch (voiceError: any) {
       console.error(
         'Voice recording error:',
@@ -809,7 +724,6 @@ const ConversationScreen = ({
     }
   };
 
-
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -849,11 +763,7 @@ const ConversationScreen = ({
       }
       keyboardVerticalOffset={90}>
 
-      {/* CHAT HEADER */}
-
       <View style={styles.header}>
-        {/* avatar */}
-
         <View style={styles.headerText}>
           <Text style={styles.name}>
             {otherUser?.displayName ||
@@ -878,8 +788,6 @@ const ConversationScreen = ({
         </Pressable>
       </View>
 
-      {/* ERROR */}
-
       <Modal
         visible={isMenuVisible}
         transparent
@@ -903,13 +811,10 @@ const ConversationScreen = ({
               style={styles.menuItem}
               onPress={() => {
                 setIsMenuVisible(false);
-
-                // Mute will be implemented later.
               }}>
               <Text style={styles.menuIcon}>
                 🔕
               </Text>
-
               <Text style={styles.menuItemText}>
                 Mute
               </Text>
@@ -919,13 +824,10 @@ const ConversationScreen = ({
               style={styles.menuItem}
               onPress={() => {
                 setIsMenuVisible(false);
-
-                // Search will be implemented later.
               }}>
               <Text style={styles.menuIcon}>
                 🔍
               </Text>
-
               <Text style={styles.menuItemText}>
                 Search
               </Text>
@@ -937,7 +839,6 @@ const ConversationScreen = ({
               <Text style={styles.menuIcon}>
                 🗑
               </Text>
-
               <Text style={styles.menuItemText}>
                 Clear chat
               </Text>
@@ -947,13 +848,10 @@ const ConversationScreen = ({
               style={styles.menuItem}
               onPress={() => {
                 setIsMenuVisible(false);
-
-                // Block will be implemented later.
               }}>
               <Text style={styles.menuIcon}>
                 🚫
               </Text>
-
               <Text style={styles.menuItemText}>
                 Block
               </Text>
@@ -968,8 +866,6 @@ const ConversationScreen = ({
           {error}
         </Text>
       )}
-
-      {/* MESSAGES */}
 
       <ScrollView
         ref={scrollViewRef}
@@ -1026,20 +922,26 @@ const ConversationScreen = ({
         )}
       </ScrollView>
 
-      {/* MESSAGE INPUT */}
-
       <View style={styles.inputContainer}>
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Type a message..."
+          placeholder={
+            isRecording
+              ? 'Recording... Tap 🎙️ to stop'
+              : 'Type a message...'
+          }
           placeholderTextColor={
             COLORS.secondary
           }
           style={styles.input}
           multiline
           maxLength={5000}
-          editable={!isSending}
+          editable={
+            !isSending &&
+            !isRecording &&
+            !isSendingVoice
+          }
           onSubmitEditing={event => {
             if (
               Platform.OS === 'ios' &&
@@ -1058,14 +960,42 @@ const ConversationScreen = ({
 
         <Pressable
           style={[
+            styles.voiceButton,
+            isRecording &&
+            styles.voiceButtonRecording,
+            isSendingVoice &&
+            styles.voiceButtonDisabled,
+          ]}
+          onPress={handleVoiceMessage}
+          disabled={isSendingVoice}>
+
+          {isSendingVoice ? (
+            <ActivityIndicator
+              color="#FFFFFF"
+              size="small"
+            />
+          ) : (
+            <Text style={styles.voiceButtonText}>
+              {isRecording ? '⏹️' : '🎙️'}
+            </Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[
             styles.sendButton,
             (!text.trim() ||
-              isSending) &&
+              isSending ||
+              isRecording ||
+              isSendingVoice) &&
             styles.sendButtonDisabled,
           ]}
           onPress={handleSend}
           disabled={
-            !text.trim() || isSending
+            !text.trim() ||
+            isSending ||
+            isRecording ||
+            isSendingVoice
           }>
 
           {isSending ? (
@@ -1101,6 +1031,69 @@ const MessageBubble = ({
   translatedText,
   isTranslating,
 }: MessageBubbleProps) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+
+  const handlePlayVoice = async () => {
+    if (isLoadingAudio) {
+      return;
+    }
+
+    try {
+      setIsLoadingAudio(true);
+
+      if (isPlaying) {
+        await Sound.stopPlayer();
+        setIsPlaying(false);
+        return;
+      }
+
+      if (!message.audioPath) {
+        throw new Error(
+          'Voice message audio is unavailable.',
+        );
+      }
+
+      const signedUrl =
+        await getVoiceMessageUrl(
+          message.audioPath,
+        );
+
+      console.log(
+        'Playing voice message:',
+        message.id,
+      );
+
+      await Sound.startPlayer(
+        signedUrl,
+      );
+
+      setIsPlaying(true);
+
+      Sound.addPlayBackListener(
+        (event: any) => {
+          if (
+            event.currentPosition >=
+            event.duration
+          ) {
+            setIsPlaying(false);
+            Sound.stopPlayer();
+            Sound.removePlayBackListener();
+          }
+        },
+      );
+    } catch (playError: any) {
+      console.error(
+        'Voice playback error:',
+        playError,
+      );
+
+      setIsPlaying(false);
+    } finally {
+      setIsLoadingAudio(false);
+    }
+  };
+
   return (
     <View
       style={[
@@ -1118,19 +1111,70 @@ const MessageBubble = ({
             : styles.theirMessageBubble,
         ]}>
 
-        {/* ORIGINAL MESSAGE */}
+        {message.messageType === 'voice' ? (
+          <Pressable
+            style={styles.voiceMessageContent}
+            onPress={handlePlayVoice}
+            disabled={isLoadingAudio}>
 
-        <Text
-          style={[
-            styles.messageText,
-            isMine
-              ? styles.myMessageText
-              : styles.theirMessageText,
-          ]}>
-          {message.textContent || ''}
-        </Text>
+            {isLoadingAudio ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  isMine
+                    ? '#FFFFFF'
+                    : COLORS.accent
+                }
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.voiceMessageIcon,
+                  isMine
+                    ? styles.myMessageText
+                    : styles.theirMessageText,
+                ]}>
+                {isPlaying ? '⏸️' : '▶️'}
+              </Text>
+            )}
 
-        {/* TRANSLATED MESSAGE */}
+            <Text
+              style={[
+                styles.voiceMessageText,
+                isMine
+                  ? styles.myMessageText
+                  : styles.theirMessageText,
+              ]}>
+              {isPlaying
+                ? 'Playing...'
+                : 'Voice message'}
+            </Text>
+
+            {message.durationMs !== null && (
+              <Text
+                style={[
+                  styles.voiceDuration,
+                  isMine
+                    ? styles.myMessageText
+                    : styles.theirMessageText,
+                ]}>
+                {Math.round(
+                  message.durationMs / 1000,
+                )}s
+              </Text>
+            )}
+          </Pressable>
+        ) : (
+          <Text
+            style={[
+              styles.messageText,
+              isMine
+                ? styles.myMessageText
+                : styles.theirMessageText,
+            ]}>
+            {message.textContent || ''}
+          </Text>
+        )}
 
         {isTranslating && (
           <View
@@ -1283,6 +1327,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.secondary,
     marginTop: 2,
+  },
+
+  menuButton: {
+    padding: 6,
+  },
+
+  menuButtonText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
 
   messageList: {
@@ -1446,20 +1500,19 @@ const styles = StyleSheet.create({
     borderColor:
       COLORS.border,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingBottom: 12,
     fontSize: 16,
     color: COLORS.primary,
   },
 
   sendButton: {
-    minHeight: 46,
-    minWidth: 68,
+    backgroundColor: COLORS.accent,
     borderRadius: 14,
-    backgroundColor:
-      COLORS.accent,
+    paddingHorizontal: 16,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
   },
 
   sendButtonDisabled: {
@@ -1468,91 +1521,115 @@ const styles = StyleSheet.create({
 
   sendButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
 
-  error: {
-    color: '#D32F2F',
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-
-  retryButton: {
-    marginTop: 18,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor:
-      COLORS.accent,
-  },
-
-  retryText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  menuButton: {
-    width: 42,
+  voiceButton: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    width: 46,
     height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  menuButtonText: {
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '700',
-    color: COLORS.primary,
+  voiceButtonRecording: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#FF3B30',
+  },
+
+  voiceButtonDisabled: {
+    opacity: 0.5,
+  },
+
+  voiceButtonText: {
+    fontSize: 20,
+  },
+
+  voiceMessageContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  voiceMessageIcon: {
+    fontSize: 18,
+  },
+
+  voiceMessageText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  voiceDuration: {
+    fontSize: 14,
+    opacity: 0.8,
+    marginLeft: 4,
   },
 
   menuOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(0,0,0,0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
   },
 
   menuContainer: {
-    position: 'absolute',
-    top: 62,
-    right: 14,
-    width: 190,
-    backgroundColor:
-      COLORS.surface,
-    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    width: 180,
+    marginTop: 50,
+    marginRight: 16,
     borderWidth: 1,
-    borderColor:
-      COLORS.border,
-    paddingVertical: 6,
-    elevation: 8,
+    borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+    paddingVertical: 6,
   },
 
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 13,
+    gap: 12,
   },
 
   menuIcon: {
-    width: 30,
-    fontSize: 18,
+    fontSize: 16,
   },
 
   menuItemText: {
     fontSize: 15,
     color: COLORS.primary,
     fontWeight: '500',
+  },
+
+  error: {
+    color: '#FF3B30',
+    fontSize: 14,
+    textAlign: 'center',
+    margin: 10,
+  },
+
+  retryButton: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+
+  retryText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });
 

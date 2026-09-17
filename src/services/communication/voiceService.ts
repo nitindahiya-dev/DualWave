@@ -155,3 +155,40 @@ export const createVoiceMessage = async (
 
   return data.id;
 };
+
+export const getVoiceMessageUrl = async (
+  audioPath: string,
+): Promise<string> => {
+  if (!audioPath) {
+    throw new Error(
+      'Audio path is required.',
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.storage
+    .from(VOICE_BUCKET)
+    .createSignedUrl(
+      audioPath,
+      60 * 60,
+    );
+
+  if (error) {
+    console.error(
+      'Unable to create voice message URL:',
+      error,
+    );
+
+    throw error;
+  }
+
+  if (!data?.signedUrl) {
+    throw new Error(
+      'Unable to create voice message URL.',
+    );
+  }
+
+  return data.signedUrl;
+};
